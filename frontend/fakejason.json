@@ -1,0 +1,42 @@
+{
+  "status": "success",
+  "schedule": [
+    {
+      "job_id": 1,
+      "name": "Track Inspection",
+      "line": "NS",
+      "track": "NS1-NS2",
+      "priority": "Urgent",
+      "scheduled_start": "2026-09-15T01:00:00",
+      "scheduled_end": "2026-09-15T03:00:00"
+    },
+    {
+      "job_id": 2,
+      "name": "Signal Upgrade",
+      "line": "NS",
+      "track": "NS2-NS3",
+      "priority": "High",
+      "scheduled_start": "2026-09-15T01:30:00",
+      "scheduled_end": "2026-09-15T04:00:00"
+    },
+    {
+      "job_id": 3,
+      "name": "Rail Replacement",
+      "line": "NS",
+      "track": "NS1-NS2",
+      "priority": "Medium",
+      "scheduled_start": "2026-09-15T03:30:00",
+      "scheduled_end": "2026-09-15T05:00:00"
+    },
+    {
+      "job_id": 4,
+      "name": "Platform Repair",
+      "line": "EW",
+      "track": "EW5-EW6",
+      "priority": "Low",
+      "scheduled_start": "2026-09-15T02:00:00",
+      "scheduled_end": "2026-09-15T04:30:00"
+    }
+  ],
+  "ai_explanation": "4 maintenance jobs scheduled tonight across NS and EW lines. Urgent priority: Track Inspection on NS1-NS2. Rail Replacement on NS1-NS2 scheduled after inspection completes to avoid track conflict. All jobs fit within engineering hours window."
+}
