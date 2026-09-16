@@ -1,0 +1,920 @@
+{
+  "maintenance_catalog": {
+    "track_and_permanent_way": [
+      {
+        "activity": "Rail inspection",
+        "type": "Preventive",
+        "required_skills": ["Track inspection", "Defect detection"]
+      },
+      {
+        "activity": "Rail wear inspection",
+        "type": "Preventive",
+        "required_skills": ["Track inspection", "Measurement"]
+      },
+      {
+        "activity": "Rail grinding",
+        "type": "Preventive",
+        "required_skills": ["Track maintenance", "Rail grinding equipment"]
+      },
+      {
+        "activity": "Rail replacement",
+        "type": "Corrective",
+        "required_skills": ["Rail replacement", "Welding", "Heavy machinery"]
+      },
+      {
+        "activity": "Rail welding",
+        "type": "Corrective",
+        "required_skills": ["Rail welding", "Metallurgy"]
+      },
+      {
+        "activity": "Track alignment correction",
+        "type": "Corrective",
+        "required_skills": ["Track geometry", "Surveying"]
+      },
+      {
+        "activity": "Track gauge inspection",
+        "type": "Preventive",
+        "required_skills": ["Track measurement", "Surveying"]
+      },
+      {
+        "activity": "Track tamping",
+        "type": "Preventive",
+        "required_skills": ["Track machinery", "Track alignment"]
+      },
+      {
+        "activity": "Sleeper replacement",
+        "type": "Corrective",
+        "required_skills": ["Track maintenance", "Heavy machinery"]
+      },
+      {
+        "activity": "Fastener replacement",
+        "type": "Corrective",
+        "required_skills": ["Mechanical maintenance", "Track systems"]
+      },
+      {
+        "activity": "Switch/point inspection",
+        "type": "Preventive",
+        "required_skills": ["Points & crossings", "Mechanical systems"]
+      },
+      {
+        "activity": "Switch/point replacement",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Track maintenance"]
+      },
+      {
+        "activity": "Track-bed inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil inspection", "Track inspection"]
+      },
+      {
+        "activity": "Track-bed repair",
+        "type": "Corrective",
+        "required_skills": ["Civil engineering", "Track maintenance"]
+      },
+      {
+        "activity": "Third-rail inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Track systems"]
+      },
+      {
+        "activity": "Third-rail replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical", "Track maintenance"]
+      },
+      {
+        "activity": "Third-rail alignment",
+        "type": "Corrective",
+        "required_skills": ["Electrical", "Track systems"]
+      },
+      {
+        "activity": "Cable trough inspection/repair",
+        "type": "Preventive/Corrective",
+        "required_skills": ["Electrical", "Cable systems"]
+      },
+      {
+        "activity": "Drainage inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil engineering"]
+      },
+      {
+        "activity": "Drainage/sump cleaning",
+        "type": "Preventive",
+        "required_skills": ["Civil maintenance", "Facilities maintenance"]
+      },
+      {
+        "activity": "Tunnel inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil inspection", "Structural inspection"]
+      },
+      {
+        "activity": "Tunnel structural repair",
+        "type": "Corrective",
+        "required_skills": ["Civil engineering", "Structural engineering"]
+      },
+      {
+        "activity": "Walkway repair",
+        "type": "Corrective",
+        "required_skills": ["Civil", "Mechanical"]
+      },
+      {
+        "activity": "Trackside equipment inspection",
+        "type": "Preventive",
+        "required_skills": ["Track systems", "Electrical"]
+      }
+    ],
+    "signalling_and_train_control": [
+      {
+        "activity": "Track circuit inspection",
+        "type": "Preventive",
+        "required_skills": ["Signalling", "Electrical"]
+      },
+      {
+        "activity": "Track circuit fault repair",
+        "type": "Corrective",
+        "required_skills": ["Signalling diagnostics"]
+      },
+      {
+        "activity": "Signal inspection",
+        "type": "Preventive",
+        "required_skills": ["Signalling systems"]
+      },
+      {
+        "activity": "Signal replacement",
+        "type": "Corrective",
+        "required_skills": ["Signalling", "Electrical"]
+      },
+      {
+        "activity": "Point machine inspection",
+        "type": "Preventive",
+        "required_skills": ["Signalling", "Mechanical"]
+      },
+      {
+        "activity": "Point machine repair",
+        "type": "Corrective",
+        "required_skills": ["Signalling", "Mechanical"]
+      },
+      {
+        "activity": "Interlocking system inspection",
+        "type": "Preventive",
+        "required_skills": ["Signalling engineering"]
+      },
+      {
+        "activity": "Interlocking fault troubleshooting",
+        "type": "Corrective",
+        "required_skills": ["Signalling diagnostics"]
+      },
+      {
+        "activity": "Signalling cable inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Cabling"]
+      },
+      {
+        "activity": "Signalling cable replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical", "Cabling"]
+      },
+      {
+        "activity": "Train detection system testing",
+        "type": "Preventive",
+        "required_skills": ["Signalling", "Electronics"]
+      },
+      {
+        "activity": "Train control equipment testing",
+        "type": "Preventive",
+        "required_skills": ["Signalling", "Control systems"]
+      },
+      {
+        "activity": "Signalling software/configuration maintenance",
+        "type": "Preventive",
+        "required_skills": ["Software", "Signalling"]
+      },
+      {
+        "activity": "Signalling equipment replacement",
+        "type": "Corrective",
+        "required_skills": ["Signalling", "Electrical"]
+      },
+      {
+        "activity": "Signalling system functional testing",
+        "type": "Testing",
+        "required_skills": ["Signalling engineering"]
+      },
+      {
+        "activity": "Emergency signalling fault recovery",
+        "type": "Corrective",
+        "required_skills": ["Signalling troubleshooting"]
+      }
+    ],
+    "power_and_electrical_systems": [
+      {
+        "activity": "Third-rail inspection",
+        "type": "Preventive",
+        "required_skills": ["High-voltage", "Traction electrical"]
+      },
+      {
+        "activity": "Third-rail repair",
+        "type": "Corrective",
+        "required_skills": ["Traction power"]
+      },
+      {
+        "activity": "Third-rail component replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Traction power substation inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical power"]
+      },
+      {
+        "activity": "Traction power equipment testing",
+        "type": "Preventive",
+        "required_skills": ["Electrical testing"]
+      },
+      {
+        "activity": "Transformer inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical power"]
+      },
+      {
+        "activity": "Transformer repair",
+        "type": "Corrective",
+        "required_skills": ["Electrical power"]
+      },
+      {
+        "activity": "Switchgear inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Switchgear replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Circuit breaker testing",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Power cable inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Cabling"]
+      },
+      {
+        "activity": "Power cable replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Battery system inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "UPS maintenance",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Emergency power system testing",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Earthing/grounding inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical safety"]
+      },
+      {
+        "activity": "Electrical protection testing",
+        "type": "Preventive",
+        "required_skills": ["Protection systems"]
+      },
+      {
+        "activity": "Power quality testing",
+        "type": "Diagnostic",
+        "required_skills": ["Electrical engineering"]
+      },
+      {
+        "activity": "Traction power fault troubleshooting",
+        "type": "Corrective",
+        "required_skills": ["Electrical diagnostics"]
+      }
+    ],
+    "rolling_stock": [
+      {
+        "activity": "Train brake inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Braking systems"]
+      },
+      {
+        "activity": "Brake pad replacement",
+        "type": "Corrective",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Wheel inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Inspection"]
+      },
+      {
+        "activity": "Wheel replacement",
+        "type": "Corrective",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Wheel profiling",
+        "type": "Corrective/Preventive",
+        "required_skills": ["Machining", "Mechanical"]
+      },
+      {
+        "activity": "Bogie inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Bogie repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Suspension inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Suspension replacement",
+        "type": "Corrective",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Door mechanism inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Train door repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Door sensor testing",
+        "type": "Preventive",
+        "required_skills": ["Electronics"]
+      },
+      {
+        "activity": "Air-conditioning inspection",
+        "type": "Preventive",
+        "required_skills": ["HVAC"]
+      },
+      {
+        "activity": "Air-conditioning repair",
+        "type": "Corrective",
+        "required_skills": ["HVAC"]
+      },
+      {
+        "activity": "Train lighting inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Train lighting repair",
+        "type": "Corrective",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Passenger information system repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics", "Software"]
+      },
+      {
+        "activity": "Train communication system testing",
+        "type": "Preventive",
+        "required_skills": ["Communications"]
+      },
+      {
+        "activity": "Train CCTV inspection",
+        "type": "Preventive",
+        "required_skills": ["CCTV", "Electronics"]
+      },
+      {
+        "activity": "Train CCTV repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics"]
+      },
+      {
+        "activity": "Onboard signalling equipment testing",
+        "type": "Preventive",
+        "required_skills": ["Signalling", "Electronics"]
+      },
+      {
+        "activity": "Train electrical system inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Train electrical fault diagnosis",
+        "type": "Corrective",
+        "required_skills": ["Electrical diagnostics"]
+      },
+      {
+        "activity": "Pantograph inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Mechanical"]
+      },
+      {
+        "activity": "Train propulsion system inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Control"]
+      },
+      {
+        "activity": "Propulsion fault diagnosis",
+        "type": "Corrective",
+        "required_skills": ["Electrical", "Control"]
+      },
+      {
+        "activity": "Motor inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Mechanical"]
+      },
+      {
+        "activity": "Train roof equipment inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Mechanical"]
+      },
+      {
+        "activity": "Underframe equipment inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Train overhaul",
+        "type": "Major maintenance",
+        "required_skills": ["Mechanical", "Electrical"]
+      }
+    ],
+    "platform_screen_doors": [
+      {
+        "activity": "PSD inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Door alignment",
+        "type": "Corrective",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Door motor inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical", "Mechanical"]
+      },
+      {
+        "activity": "Door motor replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical", "Mechanical"]
+      },
+      {
+        "activity": "Door sensor testing",
+        "type": "Preventive",
+        "required_skills": ["Electronics"]
+      },
+      {
+        "activity": "Door controller testing",
+        "type": "Preventive",
+        "required_skills": ["Electronics", "Control"]
+      },
+      {
+        "activity": "PSD communication fault repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics", "Communications"]
+      },
+      {
+        "activity": "Door obstruction sensor repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics"]
+      },
+      {
+        "activity": "Emergency release mechanism inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "PSD functional testing",
+        "type": "Testing",
+        "required_skills": ["Electrical", "Control"]
+      }
+    ],
+    "station_equipment": [
+      {
+        "activity": "Escalator inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Escalator repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Lift inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Lift repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Travellator maintenance",
+        "type": "Preventive/Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Station lighting repair",
+        "type": "Corrective",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Station electrical panel inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Station ventilation maintenance",
+        "type": "Preventive",
+        "required_skills": ["HVAC"]
+      },
+      {
+        "activity": "Station air-conditioning maintenance",
+        "type": "Preventive",
+        "required_skills": ["HVAC"]
+      },
+      {
+        "activity": "Tunnel ventilation fan maintenance",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Water pump maintenance",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Drainage pump repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Fire alarm system testing",
+        "type": "Testing",
+        "required_skills": ["Fire protection", "Electrical"]
+      },
+      {
+        "activity": "Fire protection system inspection",
+        "type": "Preventive",
+        "required_skills": ["Fire protection"]
+      },
+      {
+        "activity": "Emergency lighting testing",
+        "type": "Testing",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Public announcement system repair",
+        "type": "Corrective",
+        "required_skills": ["Audio", "Electronics"]
+      },
+      {
+        "activity": "Passenger information display repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics", "Software"]
+      },
+      {
+        "activity": "CCTV maintenance",
+        "type": "Preventive",
+        "required_skills": ["CCTV", "Networking"]
+      },
+      {
+        "activity": "Access-control system repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics", "Security"]
+      },
+      {
+        "activity": "Automatic fare gate maintenance",
+        "type": "Preventive",
+        "required_skills": ["Electronics", "Mechanical"]
+      },
+      {
+        "activity": "Fare-gate sensor repair",
+        "type": "Corrective",
+        "required_skills": ["Electronics"]
+      },
+      {
+        "activity": "Station communication system maintenance",
+        "type": "Preventive",
+        "required_skills": ["Communications"]
+      }
+    ],
+    "communications_and_it_systems": [
+      {
+        "activity": "Radio communication system inspection",
+        "type": "Preventive",
+        "required_skills": ["RF", "Communications"]
+      },
+      {
+        "activity": "Radio equipment repair",
+        "type": "Corrective",
+        "required_skills": ["RF", "Electronics"]
+      },
+      {
+        "activity": "Fibre-optic cable inspection",
+        "type": "Preventive",
+        "required_skills": ["Networking", "Fibre optics"]
+      },
+      {
+        "activity": "Fibre-optic cable repair",
+        "type": "Corrective",
+        "required_skills": ["Fibre optics"]
+      },
+      {
+        "activity": "Network switch replacement",
+        "type": "Corrective",
+        "required_skills": ["Networking"]
+      },
+      {
+        "activity": "Network equipment inspection",
+        "type": "Preventive",
+        "required_skills": ["Networking"]
+      },
+      {
+        "activity": "CCTV network repair",
+        "type": "Corrective",
+        "required_skills": ["Networking", "CCTV"]
+      },
+      {
+        "activity": "CCTV camera replacement",
+        "type": "Corrective",
+        "required_skills": ["CCTV", "Electronics"]
+      },
+      {
+        "activity": "Passenger information system repair",
+        "type": "Corrective",
+        "required_skills": ["IT", "Electronics"]
+      },
+      {
+        "activity": "Public announcement system repair",
+        "type": "Corrective",
+        "required_skills": ["Audio", "Electronics"]
+      },
+      {
+        "activity": "SCADA/monitoring system troubleshooting",
+        "type": "Corrective",
+        "required_skills": ["Control systems", "IT"]
+      },
+      {
+        "activity": "Server/system maintenance",
+        "type": "Preventive",
+        "required_skills": ["IT"]
+      },
+      {
+        "activity": "Communication equipment testing",
+        "type": "Testing",
+        "required_skills": ["Communications"]
+      },
+      {
+        "activity": "Communication cable replacement",
+        "type": "Corrective",
+        "required_skills": ["Electrical", "Networking"]
+      }
+    ],
+    "tunnel_and_civil_infrastructure": [
+      {
+        "activity": "Tunnel structural inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil", "Structural"]
+      },
+      {
+        "activity": "Tunnel crack inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil", "Structural"]
+      },
+      {
+        "activity": "Concrete repair",
+        "type": "Corrective",
+        "required_skills": ["Civil"]
+      },
+      {
+        "activity": "Waterproofing inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil"]
+      },
+      {
+        "activity": "Water leakage repair",
+        "type": "Corrective",
+        "required_skills": ["Civil"]
+      },
+      {
+        "activity": "Tunnel drainage cleaning",
+        "type": "Preventive",
+        "required_skills": ["Civil"]
+      },
+      {
+        "activity": "Sump pump maintenance",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Tunnel ventilation inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "HVAC"]
+      },
+      {
+        "activity": "Tunnel ventilation fan repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Emergency walkway inspection",
+        "type": "Preventive",
+        "required_skills": ["Civil"]
+      },
+      {
+        "activity": "Cable trough repair",
+        "type": "Corrective",
+        "required_skills": ["Civil", "Electrical"]
+      },
+      {
+        "activity": "Tunnel lighting repair",
+        "type": "Corrective",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Fire protection inspection",
+        "type": "Preventive",
+        "required_skills": ["Fire safety"]
+      },
+      {
+        "activity": "Tunnel signage replacement",
+        "type": "Corrective",
+        "required_skills": ["Facilities", "Civil"]
+      }
+    ],
+    "depot_and_workshop_equipment": [
+      {
+        "activity": "Maintenance vehicle inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Maintenance vehicle repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Overhead crane inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Overhead crane repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Forklift inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Forklift repair",
+        "type": "Corrective",
+        "required_skills": ["Mechanical", "Electrical"]
+      },
+      {
+        "activity": "Workshop machinery maintenance",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Hydraulic equipment maintenance",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Hydraulics"]
+      },
+      {
+        "activity": "Compressed-air system maintenance",
+        "type": "Preventive",
+        "required_skills": ["Pneumatics"]
+      },
+      {
+        "activity": "Workshop electrical equipment inspection",
+        "type": "Preventive",
+        "required_skills": ["Electrical"]
+      },
+      {
+        "activity": "Train lifting equipment inspection",
+        "type": "Preventive",
+        "required_skills": ["Mechanical"]
+      },
+      {
+        "activity": "Train washing equipment maintenance",
+        "type": "Preventive",
+        "required_skills": ["Mechanical", "Electrical"]
+      }
+    ]
+  },
+  "master_skillsets": {
+    "track_and_civil": [
+      "Track inspection",
+      "Track maintenance",
+      "Rail replacement",
+      "Rail welding",
+      "Rail grinding",
+      "Track alignment",
+      "Track geometry measurement",
+      "Track tamping",
+      "Switch & crossing maintenance",
+      "Third-rail maintenance",
+      "Tunnel inspection",
+      "Structural inspection",
+      "Concrete repair",
+      "Drainage maintenance",
+      "Waterproofing",
+      "Cable-trough maintenance",
+      "Surveying"
+    ],
+    "mechanical": [
+      "General mechanical maintenance",
+      "Heavy machinery operation",
+      "Bearing maintenance",
+      "Wheel/axle maintenance",
+      "Bogie maintenance",
+      "Brake systems",
+      "Door mechanisms",
+      "Hydraulic systems",
+      "Pneumatic systems",
+      "HVAC",
+      "Crane operation",
+      "Forklift operation",
+      "Maintenance vehicle operation"
+    ],
+    "electrical": [
+      "Electrical maintenance",
+      "Traction power systems",
+      "Third-rail systems",
+      "High-voltage systems",
+      "Switchgear",
+      "Transformer systems",
+      "Circuit protection",
+      "Electrical testing",
+      "Power cable maintenance",
+      "Battery/UPS systems",
+      "Earthing/grounding",
+      "Train electrical systems"
+    ],
+    "signalling_and_control": [
+      "Railway signalling",
+      "Track circuits",
+      "Point machines",
+      "Interlocking systems",
+      "Train detection",
+      "Train control systems",
+      "Signalling diagnostics",
+      "Control systems",
+      "SCADA"
+    ],
+    "electronics": [
+      "Electronic circuit troubleshooting",
+      "Sensors",
+      "Control electronics",
+      "Door controllers",
+      "CCTV systems",
+      "Passenger information systems",
+      "Automatic fare collection systems"
+    ],
+    "communications_and_it": [
+      "Railway communications",
+      "Radio systems",
+      "Fibre optics",
+      "Computer networking",
+      "Network troubleshooting",
+      "Server/IT systems",
+      "Cybersecurity",
+      "Public announcement systems"
+    ],
+    "safety_and_operations": [
+      "Railway safety procedures",
+      "Worksite safety",
+      "Electrical isolation",
+      "Track access procedures",
+      "Work-at-height safety",
+      "Confined-space work",
+      "Emergency response",
+      "Risk assessment",
+      "Permit-to-work procedures",
+      "Incident investigation",
+      "Toolbox briefing / worksite coordination"
+    ]
+  }
+}
