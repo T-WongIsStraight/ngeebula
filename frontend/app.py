@@ -14,13 +14,15 @@ from data_utils import (
     STATUS_COLORS,
     build_recommendation,
     detect_conflicts,
-    load_demo_payload,
     normalise_schedule,
 )
 
 
 APP_DIR = Path(__file__).resolve().parent
-DEFAULT_API_URL = os.getenv("NGEEBULA_API_URL", "http://127.0.0.1:8000")
+try:
+    DEFAULT_API_URL = os.getenv('NGEEBULA_API_URL') or st.secrets.get('NGEEBULA_API_URL', 'http://127.0.0.1:8000')
+except (FileNotFoundError, st.errors.StreamlitSecretNotFoundError):
+    DEFAULT_API_URL = os.getenv('NGEEBULA_API_URL', 'http://127.0.0.1:8000')
 LINE_META = {
     "NS": {"name": "North South", "color": "#FF4D5A", "class": "ns"},
     "EW": {"name": "East West", "color": "#29C77E", "class": "ew"},
@@ -36,6 +38,8 @@ st.set_page_config(
 
 
 def load_styles() -> None:
+    if not (APP_DIR / 'styles.css').exists():
+        return
     css = (APP_DIR / "styles.css").read_text(encoding="utf-8")
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
@@ -44,20 +48,20 @@ def get_dashboard_data(api_url: str) -> tuple[list[dict], list[dict], list[dict]
     client = ApiClient(api_url)
     try:
         schedule = client.get_gantt_data()
-        alerts = client.get_alerts()
-        audit_logs = client.get_audit_logs()
-        if not schedule:
-            raise ApiClientError("The backend returned an empty schedule.")
-        return schedule, alerts, audit_logs, True, "Live FastAPI data"
     except ApiClientError as exc:
-        demo = load_demo_payload(APP_DIR / "fakejason.json")
-        return (
-            demo["schedule"],
-            demo.get("alerts", []),
-            demo.get("audit_logs", []),
-            False,
-            str(exc),
-        )
+        return [], [], [], False, str(exc)
+    notes = []
+    try:
+        alerts = client.get_alerts()
+    except ApiClientError as exc:
+        alerts = []
+        notes.append(f'Alerts unavailable: {exc}')
+    try:
+        audit_logs = client.get_audit_logs()
+    except ApiClientError as exc:
+        audit_logs = []
+        notes.append(f'Audit log unavailable: {exc}')
+    return schedule, alerts, audit_logs, True, ' '.join(notes)
 
 
 def format_time(value: pd.Timestamp) -> str:
@@ -161,15 +165,6 @@ def build_timeline(schedule: pd.DataFrame) -> object:
                 "bar_label": row["name"],
             }
         )
-        chart_rows.append(
-            {
-                **row,
-                "scheduled_start": row["scheduled_end"],
-                "scheduled_end": row["scheduled_end"] + timedelta(minutes=30),
-                "display_type": "Buffer",
-                "bar_label": "30m buffer",
-            }
-        )
 
     chart_df = pd.DataFrame(chart_rows)
     category_order: list[str] = []
@@ -215,11 +210,6 @@ def build_timeline(schedule: pd.DataFrame) -> object:
             "Engineers: %{customdata[4]}<extra></extra>"
         ),
     )
-    for trace in fig.data:
-        if trace.name == "Buffer":
-            trace.opacity = 0.58
-            trace.hovertemplate = "<b>Safety buffer</b><br>30 minutes reserved<extra></extra>"
-
     for index, label in enumerate(category_order):
         line = label.split(" · ", maxsplit=1)[0]
         fig.add_hrect(
@@ -233,7 +223,7 @@ def build_timeline(schedule: pd.DataFrame) -> object:
 
     earliest_day = schedule["scheduled_start"].min().normalize()
     latest_day = schedule["scheduled_end"].max().normalize()
-    chart_start = earliest_day.to_pydatetime() + timedelta(minutes=26)
+    chart_start = earliest_day.to_pydatetime() + timedelta(minutes=30)
     chart_end = latest_day.to_pydatetime() + timedelta(hours=5, minutes=8)
     if chart_end <= chart_start:
         chart_end += pd.Timedelta(days=1)
@@ -350,8 +340,10 @@ def render_operations(schedule: pd.DataFrame, is_live: bool, api_url: str) -> No
         if st.button("Review proposal", width="stretch", type="primary"):
             if is_live:
                 try:
-                    ApiClient(api_url).propose_schedule()
-                    st.success("The backend generated a fresh schedule proposal.")
+                    result = ApiClient(api_url).propose_schedule()
+                    st.session_state['proposal_message'] = result.get('ai_explanation', 'Proposal generated.')
+                    st.session_state['proposal_warnings'] = result.get('warnings', [])
+                    st.rerun()
                 except ApiClientError as exc:
                     st.error(f"Proposal request failed: {exc}")
             else:
@@ -412,22 +404,43 @@ with st.sidebar:
     api_url = st.text_input(
         "FastAPI URL",
         value=DEFAULT_API_URL,
-        help="The frontend falls back to demo data if this API cannot be reached.",
+        help="Use the deployed FastAPI URL for Streamlit Cloud. Localhost only works when FastAPI runs on the same machine.",
     )
     st.caption("Frontend draft · Streamlit + Plotly")
 
-raw_schedule, alerts, audit_logs, is_live, _connection_detail = get_dashboard_data(api_url)
-schedule = normalise_schedule(raw_schedule)
-
+raw_schedule, alerts, audit_logs, is_live, connection_detail = get_dashboard_data(api_url)
 if not is_live:
-    st.markdown(
-        '<div class="demo-banner"><strong>Demo mode:</strong> showing realistic sample data while FastAPI is unavailable.</div>',
-        unsafe_allow_html=True,
-    )
+    st.error(connection_detail)
+    st.info('Start FastAPI separately, then set its reachable address in the sidebar. Uploading backend files to GitHub does not start the server.')
+    st.stop()
+if connection_detail:
+    st.warning(connection_detail)
+if 'proposal_message' in st.session_state:
+    st.success(st.session_state.pop('proposal_message'))
+    for message in st.session_state.pop('proposal_warnings', []):
+        st.warning(message)
 
-if page == "Operations":
-    render_operations(schedule, is_live, api_url)
-elif page == "Alerts":
-    render_alerts(alerts, is_live)
+# Unscheduled jobs are valid backend records, but cannot be drawn as bars.
+scheduled_rows = [r for r in raw_schedule if r.get('scheduled_start') and r.get('scheduled_end')]
+pending_count = len(raw_schedule) - len(scheduled_rows)
+if page == 'Operations':
+    if pending_count:
+        st.info(f'{pending_count} job(s) have no proposed times yet.')
+    if not scheduled_rows:
+        render_header(True)
+        st.info('No scheduled jobs yet. Create repair requests through the backend, then generate a proposal.')
+        if st.button('Generate schedule', type='primary', disabled=not raw_schedule):
+            try:
+                result = ApiClient(api_url).propose_schedule()
+                st.session_state['proposal_message'] = result.get('ai_explanation', 'Proposal generated.')
+                st.session_state['proposal_warnings'] = result.get('warnings', [])
+                st.rerun()
+            except ApiClientError as exc:
+                st.error(str(exc))
+    else:
+        schedule = normalise_schedule(scheduled_rows)
+        render_operations(schedule, True, api_url)
+elif page == 'Alerts':
+    render_alerts(alerts, True)
 else:
-    render_audit_log(audit_logs, is_live)
+    render_audit_log(audit_logs, True)
