@@ -4,15 +4,16 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 import datetime
 import json
+import os
 from typing import List, Optional, Dict, Any
 from google import genai
 
 import database
-import solver  # Solver teammate logic imported cleanly here
+import solver
 
 database.init_db()
 
-app = FastAPI(title="SMRT Railway Maintenance System Backend", version="3.0")
+app = FastAPI(title="SMRT Railway Maintenance Backend API", version="4.0")
 client = genai.Client()
 
 STATUS_COLORS = {
@@ -23,7 +24,18 @@ STATUS_COLORS = {
     "Not started": "Black"
 }
 
-# --- Pydantic Schemas ---
+# --- JSON Database Loaders ---
+def load_json_db(file_name: str) -> Dict[str, Any]:
+    if os.path.exists(file_name):
+        with open(file_name, "r") as f:
+            return json.load(f)
+    return {}
+
+MAINTENANCE_DB = load_json_db("maintenance_db.json")
+STATIONS_DB = load_json_db("stations_db.json")
+ENGINEER_DB = load_json_db("engineer_db.json")
+
+# --- Pydantic Request Schemas ---
 class JobInput(BaseModel):
     name: str
     description: str
@@ -44,7 +56,7 @@ class ChecklistUpdate(BaseModel):
     reason: Optional[str] = None
     updated_repair_time_mins: Optional[int] = None
 
-# --- Dependency ---
+# --- Helper Functions ---
 def get_db():
     db = database.SessionLocal()
     try:
@@ -52,7 +64,6 @@ def get_db():
     finally:
         db.close()
 
-# --- Helper Functions ---
 def get_color(status: str) -> str:
     return STATUS_COLORS.get(status, "Black")
 
@@ -63,56 +74,141 @@ def minutes_to_datetime(min_offset: int) -> datetime.datetime:
         base_window_start += datetime.timedelta(days=1)
     return base_window_start + datetime.timedelta(minutes=min_offset)
 
-# --- Routes ---
+def match_station_info(line_name: str, track_input: str) -> tuple[Optional[str], bool]:
+    """Scans stations_db.json to find station code and interchange status."""
+    all_networks = {**STATIONS_DB.get("MRT_Lines", {}), **STATIONS_DB.get("LRT_Networks", {})}
+    
+    matched_stations = []
+    for line_key, stations in all_networks.items():
+        if line_name.lower() in line_key.lower():
+            for st in stations:
+                if st["name"].lower() in track_input.lower() or st["code"].lower() in track_input.lower():
+                    matched_stations.append(st)
+                    
+    if matched_stations:
+        target = matched_stations[0]
+        return target["code"], len(target.get("interchange", [])) > 0
+    return None, False
+
+# --- Endpoints ---
 
 @app.post("/jobs/parse-and-create", response_model=Dict[str, Any])
 def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
-    """AI parses raw user input, infers metadata, and saves to database."""
-    prompt = f"""
-    Analyze this SMRT maintenance task:
-    Title: {job_in.name}
-    Description: {job_in.description}
-    Deadline: {job_in.deadline.isoformat()}
-    
-    Infer the following fields in strict JSON format:
-    - "priority": one of ["Urgent", "High", "Medium", "Low"]
-    - "effort_level": integer 1 to 5
-    - "duration_mins": estimated repair duration in minutes (e.g. 30, 45, 60, 90)
-    - "required_skill": specific skill needed
-    - "engineers_needed": integer (2 to 5)
     """
+    1. Reads stations_db.json to assign station_code and check interchange status.
+    2. Uses Gemini to compare against maintenance_db.json and derive priority/effort/skills.
+    3. Reads engineer_db.json / SQL DB to select engineers using precedence rules.
+    """
+    station_code, is_interchange = match_station_info(job_in.line, job_in.track)
+    now = datetime.datetime.now(datetime.timezone.utc)
+    days_to_deadline = (job_in.deadline - now).days
+
+    prompt = f"""
+    You are an expert SMRT maintenance planner.
     
+    Task Title: {job_in.name}
+    Description: {job_in.description}
+    Line: {job_in.line}
+    Track/Station: {job_in.track} (Interchange: {is_interchange})
+    Days until Deadline: {days_to_deadline} days
+    
+    Reference Maintenance Catalog JSON:
+    {json.dumps(MAINTENANCE_DB.get("maintenance_catalog", {}), indent=2)}
+
+    Evaluate the task and return strict JSON with these keys:
+    - "matched_category": key of closest category in catalog.
+    - "activity_type": "Preventive" or "Corrective"
+    - "required_skills": list of required skill strings from the catalog.
+    - "priority": one of ["Urgent", "High", "Medium", "Low"] adhering to rules:
+        * Urgent: serious risk of breakdown, deadline < 7 days.
+        * High: monthly maintenance, deadline 14-21 days, or high-load interchange station.
+        * Medium: quarterly maintenance, deadline 30-60 days.
+        * Low: yearly maintenance, deadline > 60 days.
+    - "effort_level": integer 1 to 5 based on complexity.
+    - "duration_mins": repair duration in minutes (30, 45, 60, 90, 120).
+    - "engineers_needed": integer (2 to 5). Priority Urgent requires higher count.
+    """
+
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         cleaned = response.text.strip().lstrip("```json").rstrip("```").strip()
-        ai_data = json.loads(cleaned)
+        ai_eval = json.loads(cleaned)
     except Exception:
-        ai_data = {"priority": "Medium", "effort_level": 3, "duration_mins": 60, "required_skill": "General maintenance", "engineers_needed": 2}
+        ai_eval = {
+            "matched_category": "track_and_permanent_way",
+            "activity_type": "Corrective",
+            "required_skills": ["Track maintenance"],
+            "priority": "High" if is_interchange else "Medium",
+            "effort_level": 3,
+            "duration_mins": 60,
+            "engineers_needed": 3 if is_interchange else 2
+        }
 
+    # Select engineers using precedence order: Skillset match -> Line specialization -> Experience -> Availability
+    req_skills = [s.lower() for s in ai_eval.get("required_skills", [])]
+    needed_count = ai_eval.get("engineers_needed", 2)
+    
+    available_engineers = db.query(database.Engineer).filter(database.Engineer.is_available == True).all()
+    candidate_scores = []
+    
+    for eng in available_engineers:
+        eng_skills = [s.skill_name.lower() for s in eng.skills]
+        spec_lines = json.loads(eng.specialized_lines or "[]")
+        
+        score = 0
+        # Skillset match precedence
+        skill_matches = sum(1 for rs in req_skills if any(rs in es for es in eng_skills))
+        score += skill_matches * 100
+        
+        # Line experience precedence
+        if any(job_in.line.lower() in sl.lower() for sl in spec_lines):
+            score += 25
+            
+        # Years of experience precedence
+        score += eng.years_of_experience
+        
+        candidate_scores.append((score, eng))
+        
+    candidate_scores.sort(key=lambda x: x[0], reverse=True)
+    assigned_eng_objects = [item[1] for item in candidate_scores[:needed_count]]
+
+    # Store in database
     db_job = database.RepairJob(
         name=job_in.name,
         description=job_in.description,
         line=job_in.line,
         track=job_in.track,
+        station_code=station_code,
+        is_interchange=is_interchange,
         deadline=job_in.deadline,
-        priority=ai_data.get("priority", "Medium"),
-        effort_level=ai_data.get("effort_level", 3),
-        duration_mins=ai_data.get("duration_mins", 60),
-        required_skill=ai_data.get("required_skill", "General maintenance"),
-        engineers_needed=ai_data.get("engineers_needed", 2),
+        category=ai_eval.get("matched_category"),
+        activity_type=ai_eval.get("activity_type"),
+        priority=ai_eval.get("priority"),
+        effort_level=ai_eval.get("effort_level"),
+        duration_mins=ai_eval.get("duration_mins"),
+        required_skills=json.dumps(ai_eval.get("required_skills", [])),
+        engineers_needed=needed_count,
         status="Not started",
         status_color=get_color("Not started"),
-        is_approved=False
+        is_approved=False,
+        assigned_engineers=assigned_eng_objects
     )
     db.add(db_job)
     db.commit()
     db.refresh(db_job)
 
-    return {"status": "success", "job_id": db_job.id, "parsed_data": ai_data}
+    return {
+        "status": "success",
+        "job_id": db_job.id,
+        "station_code": station_code,
+        "is_interchange": is_interchange,
+        "ai_evaluation": ai_eval,
+        "assigned_engineers": [{"id": e.id, "name": e.name, "role": e.job_role} for e in assigned_eng_objects]
+    }
 
 @app.post("/schedule/propose", response_model=Dict[str, Any])
 def propose_schedule_options(db: Session = Depends(get_db)):
-    """Fetches DB data, calls solver module, returns 3 AI-suggested options."""
+    """Fetches DB state, passes data to solver module, returns 3 AI-suggested scheduling options."""
     jobs_db = db.query(database.RepairJob).filter(database.RepairJob.status != "Done").all()
     engineers_db = db.query(database.Engineer).all()
 
@@ -122,7 +218,6 @@ def propose_schedule_options(db: Session = Depends(get_db)):
         "track": j.track,
         "duration_mins": j.duration_mins,
         "priority": j.priority,
-        "required_skill": j.required_skill,
         "engineers_needed": j.engineers_needed
     } for j in jobs_db]
 
@@ -130,8 +225,6 @@ def propose_schedule_options(db: Session = Depends(get_db)):
         "id": e.id,
         "name": e.name,
         "years_of_experience": e.years_of_experience,
-        "job_role": e.job_role,
-        "specialized_line": e.specialized_line,
         "is_available": e.is_available,
         "skills": [s.skill_name for s in e.skills]
     } for e in engineers_db]
@@ -139,7 +232,7 @@ def propose_schedule_options(db: Session = Depends(get_db)):
     schedule_results = solver.solve_mrt_schedule(jobs_data, engineers_data)
 
     if not schedule_results:
-        raise HTTPException(status_code=400, detail="Solver could not generate a feasible schedule.")
+        raise HTTPException(status_code=400, detail="Solver could not find a feasible non-overlapping schedule.")
 
     base_schedule = []
     for res in schedule_results:
@@ -147,30 +240,37 @@ def propose_schedule_options(db: Session = Depends(get_db)):
         if job:
             start_dt = minutes_to_datetime(res["scheduled_start_min"])
             end_dt = minutes_to_datetime(res["scheduled_end_min"])
+            job.scheduled_start_min = res["scheduled_start_min"]
+            job.scheduled_end_min = res["scheduled_end_min"]
+            job.scheduled_start = start_dt
+            job.scheduled_end = end_dt
+            
             base_schedule.append({
                 "job_id": job.id,
                 "name": job.name,
                 "line": job.line,
                 "track": job.track,
+                "station_code": job.station_code,
                 "priority": job.priority,
-                "start_time": start_dt.isoformat(),
-                "end_time": end_dt.isoformat(),
-                "assigned_engineer_ids": res["assigned_engineer_ids"]
+                "scheduled_start": start_dt.isoformat(),
+                "scheduled_end": end_dt.isoformat(),
+                "assigned_engineers": [e.name for e in job.assigned_engineers]
             })
+    db.commit()
 
-    prompt = f"Given this baseline schedule: {json.dumps(base_schedule)}. Output 3 JSON options: Option 1: Optimal, Option 2: Priority-Focused, Option 3: Balanced Workload."
+    prompt = f"Baseline schedule: {json.dumps(base_schedule)}. Output 3 options in JSON: Option 1: Optimal, Option 2: Priority-Focused, Option 3: Balanced Workload."
     try:
         response = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
         cleaned = response.text.strip().lstrip("```json").rstrip("```").strip()
         options = json.loads(cleaned)
     except Exception:
-        options = [{"option_name": "Option 1: Recommended", "schedule": base_schedule}]
+        options = [{"option_name": "Option 1: Recommended Schedule", "schedule": base_schedule}]
 
     return {"status": "success", "options": options, "base_schedule": base_schedule}
 
 @app.post("/approval/{job_id}", response_model=Dict[str, Any])
 def approve_or_override_job(job_id: int, payload: ApprovalPayload, db: Session = Depends(get_db)):
-    """Handles higher-up approval and manual overrides."""
+    """Handles higher-up approval and manual overrides, writing to AuditLog."""
     job = db.query(database.RepairJob).filter(database.RepairJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -203,12 +303,15 @@ def approve_or_override_job(job_id: int, payload: ApprovalPayload, db: Session =
 
 @app.patch("/checklist/{job_id}", response_model=Dict[str, Any])
 def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session = Depends(get_db)):
-    """Updates status, color codes, handles engineer availability, and triggers AI for delays/errors."""
+    """Updates job status, handles engineer availability, and triggers AI re-scheduling on Delay or Error."""
     job = db.query(database.RepairJob).filter(database.RepairJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
     new_status = payload.status
+    if new_status not in STATUS_COLORS:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of {list(STATUS_COLORS.keys())}")
+
     job.status = new_status
     job.status_color = get_color(new_status)
     ai_action_summary = None
@@ -217,6 +320,7 @@ def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session =
         for eng in job.assigned_engineers:
             eng.is_available = True
         job.assigned_engineers = []
+
     elif new_status in ("Delay", "Error"):
         if new_status == "Delay":
             job.delay_reason = payload.reason
@@ -225,9 +329,9 @@ def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session =
         else:
             job.error_reason = payload.reason
             
-        prompt = f"Repair Job '{job.name}' status changed to {new_status}. Reason: '{payload.reason}'. Suggest revised schedule and next action."
+        prompt = f"Repair Job '{job.name}' updated to {new_status}. Reason: '{payload.reason}'. Suggest next course of action and schedule shift."
         res = client.models.generate_content(model='gemini-2.5-flash', contents=prompt)
-        ai_action_summary = res.text if res else "AI recommends shifting to next available window."
+        ai_action_summary = res.text if res else "AI recommends shifting task to next available window."
         job.ai_suggested_action = ai_action_summary
         job.is_approved = False
 
@@ -239,17 +343,25 @@ def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session =
     db.add(audit)
     db.commit()
 
-    return {"status": "success", "job_id": job_id, "new_status": new_status, "status_color": job.status_color, "ai_suggested_action": ai_action_summary}
+    return {
+        "status": "success",
+        "job_id": job_id,
+        "new_status": new_status,
+        "status_color": job.status_color,
+        "ai_suggested_action": ai_action_summary
+    }
 
 @app.get("/dashboard/gantt", response_model=List[Dict[str, Any]])
 def get_gantt_chart_data(db: Session = Depends(get_db)):
-    """Serves Gantt chart data with color coding."""
+    """Returns color-coded Gantt chart data."""
     jobs = db.query(database.RepairJob).all()
     return [{
         "job_id": j.id,
         "name": j.name,
         "line": j.line,
         "track": j.track,
+        "station_code": j.station_code,
+        "is_interchange": j.is_interchange,
         "priority": j.priority,
         "status": j.status,
         "color": j.status_color,
