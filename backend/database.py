@@ -1,7 +1,6 @@
 # database.py
 from sqlalchemy import create_engine, Column, Integer, String, DateTime, ForeignKey, Table
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker, relationship
+from sqlalchemy.orm import declarative_base, sessionmaker, relationship
 import datetime
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./mrt_maintenance.db"
@@ -28,8 +27,6 @@ class Engineer(Base):
     job_role = Column(String)
     specialized_line = Column(String)
     is_available = Column(Integer, default=1)
-    
-    skills = relationship("Engineer", secondary=engineer_skills, lazy="subquery")
 
 class RepairJob(Base):
     __tablename__ = "repair_jobs"
@@ -51,7 +48,7 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, index=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    timestamp = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     action = Column(String)
     details = Column(String)
     approved_by = Column(String)
