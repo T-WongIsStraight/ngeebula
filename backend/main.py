@@ -81,7 +81,7 @@ def trigger_solver_and_gemini(db: Session = Depends(get_db)):
     if not schedule_results:
         raise HTTPException(status_code=400, detail="Solver could not find a valid feasible schedule.")
         
-    base_time = datetime.datetime.utcnow()
+    base_time = datetime.datetime.now(datetime.timezone.utc)
     packaged_schedule = []
     
     for res in schedule_results:
@@ -98,6 +98,7 @@ def trigger_solver_and_gemini(db: Session = Depends(get_db)):
                 "line": job.line,
                 "track": job.track,
                 "priority": job.priority,
+                "status": job.status,
                 "scheduled_start": start_dt.isoformat(),
                 "scheduled_end": end_dt.isoformat()
             })
