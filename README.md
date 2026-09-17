@@ -1,3 +1,32 @@
-# ngeebula
+# SMRT Railway Maintenance Scheduling System
+## Done by Team Ngeebula
 
-https://docs.google.com/document/d/1Ie0I5x3cff6maOTEyYTyWrsUHyFeLdIpfKRhDWmd-LY/edit?usp=sharing
+An AI-powered railway maintenance scheduling system built for SMRT lines (MRT/LRT). The system allows users to be able to enter in the repair work needed for individual tracks and its deadline. It then uses Google OR-Tools and a Gemini AI lanugage model to assign priority and effort levels, engineers with specific skillsets and experience and manages scheduling of different repair works to prevent conflicts. It then displays these information on a Gantt Chart dashboard, allowing the user to see the progress of the repair works.
+
+## Key Features
+
+* **Intelligent Job Parsing & Matching**: 
+  * Matches line and station codes (e.g., `NS17` Bishan) and identifies if the station is an interchange.
+  * Uses **Google Gemini AI** to assess task descriptions and evaluate repair priorities, required engineer skillsets, effort levels, and estimated repair durations.
+* **Precedence-Based Engineer Allocation**:
+  * Database that stores engineer information (e.g. personal info, contact details, skillsets, experiences and availability).
+  * Assigns personnel to work on repairs and maintenance based on their skillsets, experience and availability
+* **Constraint-Based Schedule Optimization**:
+  * Powered by **Google OR-Tools (CP-SAT Solver)** to schedule non-overlapping maintenance tasks within the standard night window (00:30–05:00).
+  * Generates multiple schedule options, using priority levels and engineer's capabilities as a key factor in scheduling maintenance work and repairs.
+* **Managerial Approvals & Audit Logging**:
+  * Supports manual overrides for priorities, engineer reassignments, and start time shifts.
+  * Keeps an immutable **Audit Log** for full operational compliance.
+* **Real-Time Monitoring & Alerts**:
+  * Colour-coded **Gantt Chart** timeline visualization, and a task checklist.
+  * Deadline alerts (1-week, 3-day, 1-day) and pre-maintenance/repair work reminders (15m, 5m)
+
+---
+
+## System Architecture
+
+The project is structured as a decoupled full-stack application:
+
+* **Backend**: Python, FastAPI, SQLAlchemy (SQLite), Google OR-Tools, Google GenAI SDK (`gemini-2.5-flash`).
+* **Frontend**: Python, Streamlit, HTML/CSS dashboard styling.
+* **Database**: Local JSON catalogs (`stations_db.json`, `maintenance_db.json`, `engineers_db.json`) combined with an active SQLite database (`smrt_maintenance.db`).
