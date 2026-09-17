@@ -1,0 +1,27 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment variables & secrets
+.env
+*.pem
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# Databases & local stores
+*.db
+*.sqlite
+database/audit_store.db
+
+# Output & log directories
+output/
+logs/
+*.log
+
+# OS-generated clutter
+.DS_Store
+Thumbs.db
