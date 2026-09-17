@@ -97,7 +97,6 @@ with tab_gantt:
             
         base_date = pd.to_datetime(base_date_str)
 
-        # Convert week numbers into calendar timeline dates
         df_gantt['start_date'] = df_gantt['week'].apply(lambda w: base_date + pd.Timedelta(weeks=int(w)-1))
         df_gantt['end_date'] = df_gantt['start_date'] + pd.Timedelta(days=6)
 
@@ -106,7 +105,7 @@ with tab_gantt:
             x_start="start_date",
             x_end="end_date",
             y="activity_id",
-            color="contract_number",
+            color="contract_number" if "contract_number" in df_gantt.columns else None,
             title=f"Generated Track Possession Timeline - Scenario {scenario_code} (Horizon Start: {base_date_str})"
         )
         
@@ -127,48 +126,62 @@ with tab_gantt:
         d_col3.download_button("💾 Download RESULTS.csv", csv_results, "RESULTS.csv", "text/csv")
 
 # -----------------------------------------------------------------------------
-# TAB 2: TASK CHECKLIST
+# TAB 2: TASK CHECKLIST & EDITING
 # -----------------------------------------------------------------------------
 with tab_checklist:
     st.subheader("Activity Workload Checklist")
     try:
-        tasks = requests.get(f"{API_URL}/tasks", timeout=3).json()
-        if tasks:
-            df_tasks = pd.DataFrame(tasks)
-            edited_df = st.data_editor(
-                df_tasks[['activity_id', 'contract_number', 'nature_of_works', 'total_accesses', 'status']],
-                column_config={
-                    "status": st.column_config.SelectboxColumn("Status", options=["Not Started", "In Progress", "Done"])
-                },
-                disabled=["activity_id", "contract_number"],
-                use_container_width=True
-            )
-            
-            if st.button("💾 Save Status Changes"):
-                for _, row in edited_df.iterrows():
-                    requests.post(f"{API_URL}/tasks/update", json={
-                        "activity_id": row['activity_id'],
-                        "status": row['status'],
-                        "author": "Works_Controller_UI"
-                    }, timeout=3)
-                st.success("Changes saved and audit log updated!")
-                st.rerun()
+        response = requests.get(f"{API_URL}/tasks", timeout=5)
+        if response.status_code == 200:
+            tasks = response.json()
+            if tasks:
+                df_tasks = pd.DataFrame(tasks)
+                
+                # Dynamic column detection matching dataset schema
+                avail_cols = df_tasks.columns.tolist()
+                display_cols = [c for c in ['activity_id', 'contract_number', 'nature_of_works', 'total_accesses_required', 'status'] if c in avail_cols]
+                
+                edited_df = st.data_editor(
+                    df_tasks[display_cols],
+                    column_config={
+                        "status": st.column_config.SelectboxColumn("Status", options=["Not Started", "In Progress", "Done"])
+                    },
+                    disabled=[c for c in display_cols if c != "status"],
+                    use_container_width=True
+                )
+                
+                if st.button("💾 Save Status Changes"):
+                    for _, row in edited_df.iterrows():
+                        requests.post(f"{API_URL}/tasks/update", json={
+                            "activity_id": str(row['activity_id']),
+                            "status": str(row['status']),
+                            "author": "Works_Controller_UI"
+                        }, timeout=3)
+                    st.success("Changes saved and audit log updated!")
+                    st.rerun()
+            else:
+                st.info("No activity tasks loaded yet. Please upload 08_ACTIVITY_DETAILS.csv in Tab 1.")
         else:
-            st.warning("No tasks loaded.")
+            st.error(f"Backend API returned status code {response.status_code}")
     except Exception as e:
         st.error(f"Error connecting to backend API: {e}")
 
 # -----------------------------------------------------------------------------
-# TAB 3: AUDIT LOG
+# TAB 3: AUDIT LOG & HISTORY
 # -----------------------------------------------------------------------------
 with tab_audit:
     st.subheader("System Change Audit Trail & Log History")
     try:
-        logs = requests.get(f"{API_URL}/audit-log", timeout=3).json()
-        if logs:
-            df_logs = pd.DataFrame(logs)
-            st.dataframe(df_logs[['timestamp', 'log_id', 'action_type', 'activity_id', 'author', 'changes', 'replan_triggered']], use_container_width=True)
+        response = requests.get(f"{API_URL}/audit-log", timeout=3)
+        if response.status_code == 200:
+            logs = response.json()
+            if logs:
+                df_logs = pd.DataFrame(logs)
+                display_cols = [c for c in ['timestamp', 'log_id', 'action_type', 'activity_id', 'author', 'changes', 'replan_triggered'] if c in df_logs.columns]
+                st.dataframe(df_logs[display_cols], use_container_width=True)
+            else:
+                st.info("No audit logs recorded yet.")
         else:
-            st.info("No audit logs recorded yet.")
+            st.warning("Audit log endpoint returned empty response.")
     except Exception:
         st.warning("Audit log system offline or initializing...")
