@@ -75,116 +75,100 @@ with tab_gantt:
     if run_solver:
         with st.spinner("Running CP-SAT Constraint Optimization Solver..."):
             try:
-                res = requests.get(f"{API_URL}/solve/{scenario_code}", timeout=30)
-                if res.status_code == 200:
-                    st.session_state["schedule_data"] = res.json()
+                res = requests.get(f"{API_URL}/solve/{scenario_code}", timeout=30).json()
+                if res:
+                    st.session_state["schedule_data"] = res
                     st.success("Solver execution complete! Generated SCHEDULE_ACCESS.csv, SCHEDULE_OCCUPANCY.csv, and RESULTS.csv.")
                 else:
-                    st.error(f"Solver Error ({res.status_code}): {res.text}")
+                    st.warning("No valid schedule returned by solver.")
             except Exception as e:
                 st.error(f"Failed to run optimization solver: {e}")
 
     if "schedule_data" in st.session_state and st.session_state["schedule_data"]:
         df_gantt = pd.DataFrame(st.session_state["schedule_data"])
         
-        if not df_gantt.empty and "week" in df_gantt.columns:
-            base_date_str = "2027-01-04"
-            try:
-                params_res = requests.get(f"{API_URL}/parameters", timeout=3).json()
-                if params_res and "start_date" in params_res:
-                    base_date_str = params_res["start_date"]
-            except Exception:
-                pass
-                
-            base_date = pd.to_datetime(base_date_str)
+        base_date_str = "2027-01-04"
+        try:
+            params_res = requests.get(f"{API_URL}/parameters", timeout=3).json()
+            if params_res and "start_date" in params_res:
+                base_date_str = params_res["start_date"]
+        except Exception:
+            pass
+            
+        base_date = pd.to_datetime(base_date_str)
 
-            df_gantt['start_date'] = df_gantt['week'].apply(lambda w: base_date + pd.Timedelta(weeks=int(float(w))-1))
-            df_gantt['end_date'] = df_gantt['start_date'] + pd.Timedelta(days=6)
+        # Convert week integers to calendar timeline dates
+        df_gantt['start_date'] = df_gantt['week'].apply(lambda w: base_date + pd.Timedelta(weeks=int(w)-1))
+        df_gantt['end_date'] = df_gantt['start_date'] + pd.Timedelta(days=6)
 
-            fig = px.timeline(
-                df_gantt,
-                x_start="start_date",
-                x_end="end_date",
-                y="activity_id",
-                color="contract_number" if "contract_number" in df_gantt.columns else None,
-                title=f"Generated Track Possession Timeline - Scenario {scenario_code} (Horizon Start: {base_date_str})"
-            )
-            
-            fig.update_yaxes(autorange="reversed")
-            fig.update_layout(xaxis_title="Calendar Timeline")
-            
-            st.plotly_chart(fig, use_container_width=True)
-            
-            st.markdown("### 📥 Download Submission CSV Outputs")
-            d_col1, d_col2, d_col3 = st.columns(3)
-            
-            csv_access = requests.get(f"{API_URL}/download/SCHEDULE_ACCESS.csv").text
-            csv_occupancy = requests.get(f"{API_URL}/download/SCHEDULE_OCCUPANCY.csv").text
-            csv_results = requests.get(f"{API_URL}/download/RESULTS.csv").text
-            
-            d_col1.download_button("💾 Download SCHEDULE_ACCESS.csv", csv_access, "SCHEDULE_ACCESS.csv", "text/csv")
-            d_col2.download_button("💾 Download SCHEDULE_OCCUPANCY.csv", csv_occupancy, "SCHEDULE_OCCUPANCY.csv", "text/csv")
-            d_col3.download_button("💾 Download RESULTS.csv", csv_results, "RESULTS.csv", "text/csv")
+        fig = px.timeline(
+            df_gantt,
+            x_start="start_date",
+            x_end="end_date",
+            y="activity_id",
+            color="contract_number",
+            title=f"Generated Track Possession Timeline - Scenario {scenario_code} (Horizon Start: {base_date_str})"
+        )
+        
+        fig.update_yaxes(autorange="reversed")
+        fig.update_layout(xaxis_title="Calendar Timeline")
+        
+        st.plotly_chart(fig, use_container_width=True)
+        
+        st.markdown("### 📥 Download Submission CSV Outputs")
+        d_col1, d_col2, d_col3 = st.columns(3)
+        
+        csv_access = requests.get(f"{API_URL}/download/SCHEDULE_ACCESS.csv").text
+        csv_occupancy = requests.get(f"{API_URL}/download/SCHEDULE_OCCUPANCY.csv").text
+        csv_results = requests.get(f"{API_URL}/download/RESULTS.csv").text
+        
+        d_col1.download_button("💾 Download SCHEDULE_ACCESS.csv", csv_access, "SCHEDULE_ACCESS.csv", "text/csv")
+        d_col2.download_button("💾 Download SCHEDULE_OCCUPANCY.csv", csv_occupancy, "SCHEDULE_OCCUPANCY.csv", "text/csv")
+        d_col3.download_button("💾 Download RESULTS.csv", csv_results, "RESULTS.csv", "text/csv")
 
 # -----------------------------------------------------------------------------
-# TAB 2: TASK CHECKLIST & EDITING
+# TAB 2: TASK CHECKLIST
 # -----------------------------------------------------------------------------
 with tab_checklist:
     st.subheader("Activity Workload Checklist")
     try:
-        response = requests.get(f"{API_URL}/tasks", timeout=5)
-        if response.status_code == 200:
-            tasks = response.json()
-            if tasks:
-                df_tasks = pd.DataFrame(tasks)
-                
-                avail_cols = df_tasks.columns.tolist()
-                display_cols = [c for c in ['activity_id', 'contract_number', 'nature_of_works', 'total_accesses_required', 'status'] if c in avail_cols]
-                
-                if not display_cols:
-                    display_cols = avail_cols[:5]
-                
-                edited_df = st.data_editor(
-                    df_tasks[display_cols],
-                    column_config={
-                        "status": st.column_config.SelectboxColumn("Status", options=["Not Started", "In Progress", "Done"])
-                    },
-                    disabled=[c for c in display_cols if c != "status"],
-                    use_container_width=True
-                )
-                
-                if st.button("💾 Save Status Changes"):
-                    for _, row in edited_df.iterrows():
-                        requests.post(f"{API_URL}/tasks/update", json={
-                            "activity_id": str(row['activity_id']),
-                            "status": str(row['status']),
-                            "author": "Works_Controller_UI"
-                        }, timeout=3)
-                    st.success("Changes saved and audit log updated!")
-                    st.rerun()
-            else:
-                st.info("No activity tasks loaded yet. Upload `08_ACTIVITY_DETAILS.csv` on the Upload tab.")
+        tasks = requests.get(f"{API_URL}/tasks", timeout=3).json()
+        if tasks:
+            df_tasks = pd.DataFrame(tasks)
+            edited_df = st.data_editor(
+                df_tasks[['activity_id', 'contract_number', 'nature_of_works', 'total_accesses', 'status']],
+                column_config={
+                    "status": st.column_config.SelectboxColumn("Status", options=["Not Started", "In Progress", "Done"])
+                },
+                disabled=["activity_id", "contract_number"],
+                use_container_width=True
+            )
+            
+            if st.button("💾 Save Status Changes"):
+                for _, row in edited_df.iterrows():
+                    requests.post(f"{API_URL}/tasks/update", json={
+                        "activity_id": row['activity_id'],
+                        "status": row['status'],
+                        "author": "Works_Controller_UI"
+                    }, timeout=3)
+                st.success("Changes saved and audit log updated!")
+                st.rerun()
         else:
-            st.error(f"Backend API Error ({response.status_code}): {response.text}")
+            st.warning("No tasks loaded.")
     except Exception as e:
         st.error(f"Error connecting to backend API: {e}")
 
 # -----------------------------------------------------------------------------
-# TAB 3: AUDIT LOG & HISTORY
+# TAB 3: AUDIT LOG
 # -----------------------------------------------------------------------------
 with tab_audit:
     st.subheader("System Change Audit Trail & Log History")
     try:
-        response = requests.get(f"{API_URL}/audit-log", timeout=3)
-        if response.status_code == 200:
-            logs = response.json()
-            if logs:
-                df_logs = pd.DataFrame(logs)
-                display_cols = [c for c in ['timestamp', 'log_id', 'action_type', 'activity_id', 'author', 'changes', 'replan_triggered'] if c in df_logs.columns]
-                st.dataframe(df_logs[display_cols], use_container_width=True)
-            else:
-                st.info("No audit logs recorded yet.")
+        logs = requests.get(f"{API_URL}/audit-log", timeout=3).json()
+        if logs:
+            df_logs = pd.DataFrame(logs)
+            st.dataframe(df_logs[['timestamp', 'log_id', 'action_type', 'activity_id', 'author', 'changes', 'replan_triggered']], use_container_width=True)
         else:
-            st.warning("Audit log endpoint returned non-200 status.")
+            st.info("No audit logs recorded yet.")
     except Exception:
         st.warning("Audit log system offline or initializing...")
