@@ -1,0 +1,33 @@
+import sqlite3
+import os
+
+DB_DIR = "database"
+DB_PATH = os.path.join(DB_DIR, "audit_store.db")
+
+def init_audit_db():
+    """Initializes the SQLite database schema for storing system audit logs."""
+    os.makedirs(DB_DIR, exist_ok=True)
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_logs (
+            log_id TEXT PRIMARY KEY,
+            timestamp TEXT NOT NULL,
+            action_type TEXT NOT NULL,
+            activity_id TEXT NOT NULL,
+            author TEXT NOT NULL,
+            changes TEXT NOT NULL,
+            replan_triggered INTEGER NOT NULL
+        );
+    """)
+    
+    # Index for fast log retrieval by timestamp
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_timestamp ON audit_logs(timestamp DESC);")
+    
+    conn.commit()
+    conn.close()
+    print(f"Database initialized successfully at {DB_PATH}")
+
+if __name__ == "__main__":
+    init_audit_db()
