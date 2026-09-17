@@ -15,9 +15,13 @@ OUTPUT_DIR = "output"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Memory state dataframes
+# Global in-memory dataframes
 activities_df = pd.DataFrame()
 projects_df = pd.DataFrame()
+
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "loaded_tasks": len(activities_df)}
 
 @app.post("/api/upload-datasets")
 async def upload_datasets(files: List[UploadFile] = File(...)):
@@ -31,7 +35,7 @@ async def upload_datasets(files: List[UploadFile] = File(...)):
             f.write(content)
         saved_files.append(file.filename)
         
-        # Auto-load into memory if activities or projects file uploaded
+        # Load directly into memory state
         if file.filename == "08_ACTIVITY_DETAILS.csv":
             activities_df = pd.read_csv(io.BytesIO(content))
             if "status" not in activities_df.columns:
@@ -50,8 +54,8 @@ async def upload_datasets(files: List[UploadFile] = File(...)):
 
 @app.get("/api/tasks")
 def get_tasks():
+    global activities_df
     if activities_df.empty and os.path.exists(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv")):
-        global activities_df
         activities_df = pd.read_csv(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv"))
         if "status" not in activities_df.columns:
             activities_df["status"] = "Not Started"
@@ -61,6 +65,9 @@ def get_tasks():
 @app.post("/api/tasks/update")
 def update_task(payload: TaskUpdateSchema):
     global activities_df
+    if activities_df.empty:
+        raise HTTPException(status_code=400, detail="No activity data loaded.")
+        
     idx = activities_df[activities_df['activity_id'] == payload.activity_id].index
     if idx.empty:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -92,7 +99,6 @@ def solve_schedule(scenario: str):
         
     access_df = run_track_optimization(activities_df, projects_df, scenario=scenario)
     
-    # Generate dummy occupancy and results dfs matching schema
     occupancy_df = access_df[['activity_id', 'week']].copy() if not access_df.empty else pd.DataFrame(columns=['activity_id', 'week'])
     occupancy_df['location_id'] = "S01-ALP"
     occupancy_df['co_share_group'] = "GRP1"
