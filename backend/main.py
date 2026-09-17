@@ -1,4 +1,5 @@
 #main.py
+
 from fastapi import FastAPI, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
@@ -36,11 +37,19 @@ STATUS_COLORS = {
     "Not started": "Black"
 }
 
-# --- JSON Database Loaders ---
+# --- JSON Database Loader with Comment Stripping ---
 def load_json_db(file_name: str) -> Dict[str, Any]:
+    """
+    Loads a JSON file and strips out single-line comments (starting with # or //)
+    so header comments in JSON files do not cause JSONDecodeError.
+    """
     if os.path.exists(file_name):
-        with open(file_name, "r") as f:
-            return json.load(f)
+        with open(file_name, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+            # Filter out any line where the first non-whitespace character is # or //
+            clean_lines = [line for line in lines if not line.strip().startswith(("#", "//"))]
+            clean_content = "".join(clean_lines)
+            return json.loads(clean_content)
     return {}
 
 MAINTENANCE_DB = load_json_db("maintenance_db.json")
@@ -90,18 +99,14 @@ def match_station_info(line_name: str, track_input: str) -> tuple[Optional[str],
     """Scans stations_db.json to find exact station code and interchange status."""
     all_networks = {**STATIONS_DB.get("MRT_Lines", {}), **STATIONS_DB.get("LRT_Networks", {})}
     
-    # Extract station code format like NS17, EW24, CC15 using regex
     code_match = re.search(r'\b([A-Z]{2,3}\d{1,2}|STC|PTC)\b', track_input, re.IGNORECASE)
     extracted_code = code_match.group(1).upper() if code_match else None
 
     for line_key, stations in all_networks.items():
         if line_name.lower() in line_key.lower():
             for st in stations:
-                # 1. Exact match on extracted code (e.g., NS17)
                 if extracted_code and st["code"].upper() == extracted_code:
                     return st["code"], len(st.get("interchange", [])) > 0
-                
-                # 2. Substring match on full station name (e.g. "Bishan")
                 if st["name"].lower() in track_input.lower():
                     return st["code"], len(st.get("interchange", [])) > 0
 
