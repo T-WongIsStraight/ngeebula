@@ -5,6 +5,7 @@ from pydantic import BaseModel
 import datetime
 import json
 import os
+import re
 from typing import List, Optional, Dict, Any
 from google import genai
 
@@ -86,30 +87,30 @@ def minutes_to_datetime(min_offset: int) -> datetime.datetime:
     return base_window_start + datetime.timedelta(minutes=min_offset)
 
 def match_station_info(line_name: str, track_input: str) -> tuple[Optional[str], bool]:
-    """Scans stations_db.json to find station code and interchange status."""
+    """Scans stations_db.json to find exact station code and interchange status."""
     all_networks = {**STATIONS_DB.get("MRT_Lines", {}), **STATIONS_DB.get("LRT_Networks", {})}
     
-    matched_stations = []
+    # Extract station code format like NS17, EW24, CC15 using regex
+    code_match = re.search(r'\b([A-Z]{2,3}\d{1,2}|STC|PTC)\b', track_input, re.IGNORECASE)
+    extracted_code = code_match.group(1).upper() if code_match else None
+
     for line_key, stations in all_networks.items():
         if line_name.lower() in line_key.lower():
             for st in stations:
-                if st["name"].lower() in track_input.lower() or st["code"].lower() in track_input.lower():
-                    matched_stations.append(st)
-                    
-    if matched_stations:
-        target = matched_stations[0]
-        return target["code"], len(target.get("interchange", [])) > 0
+                # 1. Exact match on extracted code (e.g., NS17)
+                if extracted_code and st["code"].upper() == extracted_code:
+                    return st["code"], len(st.get("interchange", [])) > 0
+                
+                # 2. Substring match on full station name (e.g. "Bishan")
+                if st["name"].lower() in track_input.lower():
+                    return st["code"], len(st.get("interchange", [])) > 0
+
     return None, False
 
 # --- Endpoints ---
 
 @app.post("/jobs/parse-and-create", response_model=Dict[str, Any])
 def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
-    """
-    1. Reads stations_db.json to assign station_code and check interchange status.
-    2. Uses Gemini (with fallback) to compare against maintenance_db.json and derive priority/effort/skills.
-    3. Reads engineers_db.json / SQL DB to select engineers using precedence rules.
-    """
     station_code, is_interchange = match_station_info(job_in.line, job_in.track)
     now = datetime.datetime.now(datetime.timezone.utc)
     days_to_deadline = (job_in.deadline - now).days
@@ -134,14 +135,10 @@ def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
         - "matched_category": key of closest category in catalog.
         - "activity_type": "Preventive" or "Corrective"
         - "required_skills": list of required skill strings from the catalog.
-        - "priority": one of ["Urgent", "High", "Medium", "Low"] adhering to rules:
-            * Urgent: serious risk of breakdown, deadline < 7 days.
-            * High: monthly maintenance, deadline 14-21 days, or high-load interchange station.
-            * Medium: quarterly maintenance, deadline 30-60 days.
-            * Low: yearly maintenance, deadline > 60 days.
+        - "priority": one of ["Urgent", "High", "Medium", "Low"]
         - "effort_level": integer 1 to 5 based on complexity.
         - "duration_mins": repair duration in minutes (30, 45, 60, 90, 120).
-        - "engineers_needed": integer (2 to 5). Priority Urgent requires higher count.
+        - "engineers_needed": integer (2 to 5).
         """
 
         try:
@@ -152,7 +149,6 @@ def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
             print(f"Gemini evaluation failed: {e}")
             ai_eval = None
 
-    # Safe fallback if Gemini client is unavailable or call fails
     if not ai_eval:
         ai_eval = {
             "matched_category": "track_and_permanent_way",
@@ -164,7 +160,6 @@ def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
             "engineers_needed": 3 if is_interchange else 2
         }
 
-    # Select engineers using precedence order: Skillset match -> Line specialization -> Experience -> Availability
     req_skills = [s.lower() for s in ai_eval.get("required_skills", [])]
     needed_count = ai_eval.get("engineers_needed", 2)
     
@@ -188,7 +183,6 @@ def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
     candidate_scores.sort(key=lambda x: x[0], reverse=True)
     assigned_eng_objects = [item[1] for item in candidate_scores[:needed_count]]
 
-    # Store in database
     db_job = database.RepairJob(
         name=job_in.name,
         description=job_in.description,
@@ -224,7 +218,6 @@ def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
 
 @app.post("/schedule/propose", response_model=Dict[str, Any])
 def propose_schedule_options(db: Session = Depends(get_db)):
-    """Fetches DB state, passes data to solver module, returns 3 scheduling options."""
     jobs_db = db.query(database.RepairJob).filter(database.RepairJob.status != "Done").all()
     engineers_db = db.query(database.Engineer).all()
 
@@ -248,7 +241,7 @@ def propose_schedule_options(db: Session = Depends(get_db)):
     schedule_results = solver.solve_mrt_schedule(jobs_data, engineers_data)
 
     if not schedule_results:
-        raise HTTPException(status_code=400, detail="Solver could not find a feasible non-overlapping schedule.")
+        raise HTTPException(status_code=400, detail="Solver could not find a feasible schedule.")
 
     base_schedule = []
     for res in schedule_results:
@@ -293,7 +286,6 @@ def propose_schedule_options(db: Session = Depends(get_db)):
 
 @app.post("/approval/{job_id}", response_model=Dict[str, Any])
 def approve_or_override_job(job_id: int, payload: ApprovalPayload, db: Session = Depends(get_db)):
-    """Handles higher-up approval and manual overrides, writing to AuditLog."""
     job = db.query(database.RepairJob).filter(database.RepairJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -326,7 +318,6 @@ def approve_or_override_job(job_id: int, payload: ApprovalPayload, db: Session =
 
 @app.patch("/checklist/{job_id}", response_model=Dict[str, Any])
 def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session = Depends(get_db)):
-    """Updates job status, handles engineer availability, and triggers AI re-scheduling on Delay or Error."""
     job = db.query(database.RepairJob).filter(database.RepairJob.id == job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
@@ -385,7 +376,6 @@ def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session =
 
 @app.get("/dashboard/gantt", response_model=List[Dict[str, Any]])
 def get_gantt_chart_data(db: Session = Depends(get_db)):
-    """Returns color-coded Gantt chart data."""
     jobs = db.query(database.RepairJob).all()
     return [{
         "job_id": j.id,
@@ -404,7 +394,6 @@ def get_gantt_chart_data(db: Session = Depends(get_db)):
 
 @app.get("/alerts/", response_model=List[Dict[str, Any]])
 def get_system_alerts(db: Session = Depends(get_db)):
-    """Generates 15m/5m pre-start alerts and 1w/3d/1d deadline alerts."""
     now = datetime.datetime.now(datetime.timezone.utc)
     active_alerts = []
     jobs = db.query(database.RepairJob).filter(database.RepairJob.status != "Done").all()
@@ -430,6 +419,5 @@ def get_system_alerts(db: Session = Depends(get_db)):
 
 @app.get("/audit-logs/", response_model=List[Dict[str, Any]])
 def get_audit_logs(db: Session = Depends(get_db)):
-    """Returns historical audit records."""
     logs = db.query(database.AuditLog).order_by(database.AuditLog.timestamp.desc()).all()
     return [{"id": l.id, "timestamp": l.timestamp.isoformat(), "action": l.action, "details": l.details, "approved_by": l.approved_by} for l in logs]
