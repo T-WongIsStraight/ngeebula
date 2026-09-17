@@ -15,13 +15,26 @@ OUTPUT_DIR = "output"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Global in-memory dataframes
 activities_df = pd.DataFrame()
 projects_df = pd.DataFrame()
 
 @app.get("/api/health")
 def health_check():
     return {"status": "ok", "loaded_tasks": len(activities_df)}
+
+@app.get("/api/parameters")
+def get_parameters():
+    param_path = os.path.join(DATA_DIR, "06_PARAMETERS.csv")
+    if os.path.exists(param_path):
+        try:
+            df_params = pd.read_csv(param_path)
+            # Find start date parameter if present in key-value structure
+            if "parameter_name" in df_params.columns and "parameter_value" in df_params.columns:
+                param_dict = dict(zip(df_params['parameter_name'], df_params['parameter_value']))
+                return {"start_date": str(param_dict.get("START_DATE", "2026-01-01"))}
+        except Exception:
+            pass
+    return {"start_date": "2026-01-01"}
 
 @app.post("/api/upload-datasets")
 async def upload_datasets(files: List[UploadFile] = File(...)):
@@ -35,7 +48,6 @@ async def upload_datasets(files: List[UploadFile] = File(...)):
             f.write(content)
         saved_files.append(file.filename)
         
-        # Load directly into memory state
         if file.filename == "08_ACTIVITY_DETAILS.csv":
             activities_df = pd.read_csv(io.BytesIO(content))
             if "status" not in activities_df.columns:
