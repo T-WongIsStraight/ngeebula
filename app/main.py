@@ -1,38 +1,61 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Response
 import pandas as pd
 import os
+import io
+from typing import List
 from app.models import TaskUpdateSchema, TaskCreateSchema
 from app.audit import record_audit, get_all_audit_logs
 from app.solver import run_track_optimization
+from app.data_loader import export_submission_files
 
 app = FastAPI(title="LTA Track Access Optimiser API")
 
-# Dynamic data directory detection
-def get_data_filepath(filename: str) -> str:
-    if os.path.exists(os.path.join("data", filename)):
-        return os.path.join("data", filename)
-    elif os.path.exists(filename):
-        return filename
-    else:
-        raise FileNotFoundError(f"Required dataset '{filename}' not found in './data/' or root directory.")
+DATA_DIR = "data"
+OUTPUT_DIR = "output"
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(OUTPUT_DIR, exist_ok=True)
 
-# Load memory state safely
-try:
-    activities_df = pd.read_csv(get_data_filepath("08_ACTIVITY_DETAILS.csv"))
-    projects_df = pd.read_csv(get_data_filepath("07_PROJECT_DETAILS.csv"))
-    if "status" not in activities_df.columns:
-        activities_df["status"] = "Not Started"
-except Exception as e:
-    print(f"⚠️ Warning during initial dataset load: {e}")
-    activities_df = pd.DataFrame()
-    projects_df = pd.DataFrame()
+# Memory state dataframes
+activities_df = pd.DataFrame()
+projects_df = pd.DataFrame()
 
-@app.get("/api/health")
-def health_check():
-    return {"status": "ok", "loaded_tasks": len(activities_df)}
+@app.post("/api/upload-datasets")
+async def upload_datasets(files: List[UploadFile] = File(...)):
+    global activities_df, projects_df
+    saved_files = []
+    
+    for file in files:
+        file_path = os.path.join(DATA_DIR, file.filename)
+        content = await file.read()
+        with open(file_path, "wb") as f:
+            f.write(content)
+        saved_files.append(file.filename)
+        
+        # Auto-load into memory if activities or projects file uploaded
+        if file.filename == "08_ACTIVITY_DETAILS.csv":
+            activities_df = pd.read_csv(io.BytesIO(content))
+            if "status" not in activities_df.columns:
+                activities_df["status"] = "Not Started"
+        elif file.filename == "07_PROJECT_DETAILS.csv":
+            projects_df = pd.read_csv(io.BytesIO(content))
+
+    record_audit(
+        action_type="FILES_UPLOADED",
+        activity_id="SYSTEM",
+        author="Works_Controller_UI",
+        changes={"uploaded_files": saved_files},
+        replan_triggered=True
+    )
+    return {"status": "success", "uploaded_files": saved_files}
 
 @app.get("/api/tasks")
 def get_tasks():
+    if activities_df.empty and os.path.exists(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv")):
+        global activities_df
+        activities_df = pd.read_csv(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv"))
+        if "status" not in activities_df.columns:
+            activities_df["status"] = "Not Started"
+            
     return activities_df.to_dict(orient="records")
 
 @app.post("/api/tasks/update")
@@ -49,10 +72,6 @@ def update_task(payload: TaskUpdateSchema):
         changes['status'] = {"old": str(activities_df.loc[row_idx, 'status']), "new": payload.status}
         activities_df.loc[row_idx, 'status'] = payload.status
 
-    if payload.total_accesses is not None:
-        changes['total_accesses'] = {"old": float(activities_df.loc[row_idx, 'total_accesses']), "new": payload.total_accesses}
-        activities_df.loc[row_idx, 'total_accesses'] = payload.total_accesses
-
     log_id = record_audit(
         action_type="TASK_UPDATED",
         activity_id=payload.activity_id,
@@ -62,28 +81,41 @@ def update_task(payload: TaskUpdateSchema):
     )
     return {"status": "success", "log_id": log_id}
 
-@app.post("/api/tasks/create")
-def create_task(payload: TaskCreateSchema):
-    global activities_df
-    new_task = payload.model_dump()
-    new_task['status'] = "Not Started"
-    author = new_task.pop('author')
-    
-    activities_df = pd.concat([activities_df, pd.DataFrame([new_task])], ignore_index=True)
-    
-    log_id = record_audit(
-        action_type="TASK_CREATED",
-        activity_id=payload.activity_id,
-        author=author,
-        changes={"created": new_task},
-        replan_triggered=True
-    )
-    return {"status": "success", "log_id": log_id}
-
 @app.get("/api/solve/{scenario}")
 def solve_schedule(scenario: str):
-    schedule = run_track_optimization(activities_df, projects_df, scenario=scenario)
-    return schedule.to_dict(orient="records")
+    global activities_df, projects_df
+    
+    if activities_df.empty and os.path.exists(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv")):
+        activities_df = pd.read_csv(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv"))
+    if projects_df.empty and os.path.exists(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv")):
+        projects_df = pd.read_csv(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv"))
+        
+    access_df = run_track_optimization(activities_df, projects_df, scenario=scenario)
+    
+    # Generate dummy occupancy and results dfs matching schema
+    occupancy_df = access_df[['activity_id', 'week']].copy() if not access_df.empty else pd.DataFrame(columns=['activity_id', 'week'])
+    occupancy_df['location_id'] = "S01-ALP"
+    occupancy_df['co_share_group'] = "GRP1"
+    
+    results_df = pd.DataFrame([{
+        "scenario": scenario,
+        "contract_number": "C101",
+        "simulated_completion_date": "2026-12-31",
+        "overrun_days": 0
+    }])
+    
+    export_submission_files(access_df, occupancy_df, results_df, output_dir=OUTPUT_DIR)
+    return access_df.to_dict(orient="records")
+
+@app.get("/api/download/{filename}")
+def download_file(filename: str):
+    file_path = os.path.join(OUTPUT_DIR, filename)
+    if os.path.exists(file_path):
+        with open(file_path, "r") as f:
+            content = f.read()
+        return Response(content=content, media_type="text/csv")
+    else:
+        return Response(content="activity_id,access_seq,week,eclo,access_night\n", media_type="text/csv")
 
 @app.get("/api/audit-log")
 def fetch_audit_logs():
