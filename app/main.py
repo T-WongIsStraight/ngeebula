@@ -15,6 +15,7 @@ OUTPUT_DIR = "output"
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+# Global in-memory dataframes
 activities_df = pd.DataFrame()
 projects_df = pd.DataFrame()
 
@@ -28,13 +29,15 @@ def get_parameters():
     if os.path.exists(param_path):
         try:
             df_params = pd.read_csv(param_path)
-            # Find start date parameter if present in key-value structure
-            if "parameter_name" in df_params.columns and "parameter_value" in df_params.columns:
-                param_dict = dict(zip(df_params['parameter_name'], df_params['parameter_value']))
-                return {"start_date": str(param_dict.get("START_DATE", "2026-01-01"))}
-        except Exception:
-            pass
-    return {"start_date": "2026-01-01"}
+            # Schema mapping: key, value
+            if "key" in df_params.columns and "value" in df_params.columns:
+                param_dict = dict(zip(df_params['key'], df_params['value']))
+                start_date = str(param_dict.get("horizon_start", "2027-01-04"))
+                horizon_weeks = int(param_dict.get("horizon_weeks", 30))
+                return {"start_date": start_date, "horizon_weeks": horizon_weeks}
+        except Exception as e:
+            print(f"Error reading 06_PARAMETERS.csv: {e}")
+    return {"start_date": "2027-01-04", "horizon_weeks": 30}
 
 @app.post("/api/upload-datasets")
 async def upload_datasets(files: List[UploadFile] = File(...)):
@@ -109,20 +112,66 @@ def solve_schedule(scenario: str):
     if projects_df.empty and os.path.exists(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv")):
         projects_df = pd.read_csv(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv"))
         
+    # 1. Run optimization solver
     access_df = run_track_optimization(activities_df, projects_df, scenario=scenario)
     
-    occupancy_df = access_df[['activity_id', 'week']].copy() if not access_df.empty else pd.DataFrame(columns=['activity_id', 'week'])
-    occupancy_df['location_id'] = "S01-ALP"
-    occupancy_df['co_share_group'] = "GRP1"
+    # 2. Build SCHEDULE_OCCUPANCY dynamically
+    if not access_df.empty and not activities_df.empty:
+        merged_occ = access_df.merge(activities_df, on="activity_id", how="left")
+        occupancy_cols = ['activity_id', 'week', 'location_id', 'co_share_group']
+        for col in occupancy_cols:
+            if col not in merged_occ.columns:
+                merged_occ[col] = "GRP1" if col == "co_share_group" else "LOC_DEFAULT"
+        occupancy_df = merged_occ[occupancy_cols].copy()
+    else:
+        occupancy_df = pd.DataFrame(columns=['activity_id', 'week', 'location_id', 'co_share_group'])
     
-    results_df = pd.DataFrame([{
-        "scenario": scenario,
-        "contract_number": "C101",
-        "simulated_completion_date": "2026-12-31",
-        "overrun_days": 0
-    }])
+    # 3. Build RESULTS dynamically
+    results_records = []
+    if not access_df.empty and not projects_df.empty:
+        merged = access_df.merge(activities_df[['activity_id', 'contract_number']], on="activity_id", how="left")
+        contract_max_week = merged.groupby('contract_number')['week'].max().to_dict() if 'contract_number' in merged.columns else {}
+        
+        # Read base horizon start date
+        base_date = pd.to_datetime("2027-01-04")
+        param_path = os.path.join(DATA_DIR, "06_PARAMETERS.csv")
+        if os.path.exists(param_path):
+            try:
+                dp = pd.read_csv(param_path)
+                if "key" in dp.columns and "value" in dp.columns:
+                    pdict = dict(zip(dp['key'], dp['value']))
+                    base_date = pd.to_datetime(pdict.get("horizon_start", "2027-01-04"))
+            except Exception:
+                pass
+
+        for _, proj in projects_df.iterrows():
+            c_num = proj.get('contract_number', 'C101')
+            max_w = contract_max_week.get(c_num, 1)
+            
+            comp_date = base_date + pd.Timedelta(weeks=int(max_w))
+            comp_date_str = comp_date.strftime("%Y-%m-%d")
+            
+            target_date_str = str(proj.get('target_completion_date', '2027-12-31'))
+            try:
+                target_date = pd.to_datetime(target_date_str)
+                overrun = max(0, (comp_date - target_date).days)
+            except Exception:
+                overrun = 0
+            
+            results_records.append({
+                "scenario": scenario,
+                "contract_number": c_num,
+                "simulated_completion_date": comp_date_str,
+                "overrun_days": overrun
+            })
+            
+        results_df = pd.DataFrame(results_records)
+    else:
+        results_df = pd.DataFrame(columns=["scenario", "contract_number", "simulated_completion_date", "overrun_days"])
     
+    # 4. Export outputs to output directory
     export_submission_files(access_df, occupancy_df, results_df, output_dir=OUTPUT_DIR)
+    
     return access_df.to_dict(orient="records")
 
 @app.get("/api/download/{filename}")
