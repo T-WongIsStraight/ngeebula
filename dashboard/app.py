@@ -8,15 +8,14 @@ API_URL = "http://localhost:8000/api"
 st.set_page_config(page_title="LTA Track Possession Control Center", layout="wide")
 st.title("🚊 LTA Railway Track Access Optimiser & Control Center")
 
-tab_upload, tab_gantt, tab_checklist, tab_audit = st.tabs([
+tab_upload, tab_gantt, tab_audit = st.tabs([
     "📁 Upload Input CSVs (Files 1–8)", 
     "📅 Interactive Gantt Chart", 
-    "📋 Task Management Checklist", 
     "📜 Audit Log & History"
 ])
 
 # -----------------------------------------------------------------------------
-# TAB 0: CSV FILE UPLOADER
+# TAB 1: CSV FILE UPLOADER
 # -----------------------------------------------------------------------------
 with tab_upload:
     st.subheader("Upload Input Datasets (01 to 08)")
@@ -58,7 +57,7 @@ with tab_upload:
             st.warning("Please upload at least one CSV file.")
 
 # -----------------------------------------------------------------------------
-# TAB 1: GANTT CHART & SOLVER
+# TAB 2: GANTT CHART & SOLVER
 # -----------------------------------------------------------------------------
 with tab_gantt:
     st.subheader("Nightly Track Possessions Schedule & Solver Engine")
@@ -125,38 +124,6 @@ with tab_gantt:
         d_col1.download_button("💾 Download SCHEDULE_ACCESS.csv", csv_access, "SCHEDULE_ACCESS.csv", "text/csv")
         d_col2.download_button("💾 Download SCHEDULE_OCCUPANCY.csv", csv_occupancy, "SCHEDULE_OCCUPANCY.csv", "text/csv")
         d_col3.download_button("💾 Download RESULTS.csv", csv_results, "RESULTS.csv", "text/csv")
-
-# -----------------------------------------------------------------------------
-# TAB 2: TASK CHECKLIST
-# -----------------------------------------------------------------------------
-with tab_checklist:
-    st.subheader("Activity Workload Checklist")
-    try:
-        tasks = requests.get(f"{API_URL}/tasks", timeout=3).json()
-        if tasks:
-            df_tasks = pd.DataFrame(tasks)
-            edited_df = st.data_editor(
-                df_tasks[['activity_id', 'contract_number', 'nature_of_works', 'total_accesses', 'status']],
-                column_config={
-                    "status": st.column_config.SelectboxColumn("Status", options=["Not Started", "In Progress", "Done"])
-                },
-                disabled=["activity_id", "contract_number"],
-                use_container_width=True
-            )
-            
-            if st.button("💾 Save Status Changes"):
-                for _, row in edited_df.iterrows():
-                    requests.post(f"{API_URL}/tasks/update", json={
-                        "activity_id": row['activity_id'],
-                        "status": row['status'],
-                        "author": "Works_Controller_UI"
-                    }, timeout=3)
-                st.success("Changes saved and audit log updated!")
-                st.rerun()
-        else:
-            st.warning("No tasks loaded.")
-    except Exception as e:
-        st.error(f"Error connecting to backend API: {e}")
 
 # -----------------------------------------------------------------------------
 # TAB 3: AUDIT LOG
