@@ -1,27 +1,29 @@
-# Byte-compiled / optimized / DLL files
+# Python Bytecode and Cache
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
 
-# Environment variables & secrets
-.env
-*.pem
-
-# Virtual Environments
-venv/
+# Environments
 .venv/
+venv/
+ENV/
 env/
 
-# Databases & local stores
+# SQLite & Local Audit Store
 *.db
 *.sqlite
-database/audit_store.db
+database/*.db
 
-# Output & log directories
-output/
-logs/
-*.log
+# Dynamic CSV Input and Output Files
+*.csv
+data/*.csv
+output/*.csv
 
-# OS-generated clutter
+# Operating System Files
 .DS_Store
 Thumbs.db
+
+# IDE Configuration
+.vscode/
+.idea/
