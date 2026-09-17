@@ -15,7 +15,9 @@ tab_upload, tab_gantt, tab_checklist, tab_audit = st.tabs([
     "📜 Audit Log & History"
 ])
 
+# -----------------------------------------------------------------------------
 # TAB 0: CSV FILE UPLOADER
+# -----------------------------------------------------------------------------
 with tab_upload:
     st.subheader("Upload Input Datasets (01 to 08)")
     col1, col2 = st.columns(2)
@@ -26,7 +28,7 @@ with tab_upload:
         "03_SECTORS.csv": "Track Sectors & Mappings",
         "04_LOCATION_SUPPLY.csv": "Nightly Location Supply",
         "05_BUFFER_LOCATION.csv": "Exclusion Buffer Rules",
-        "06_PARAMETERS.csv": "System Parameters & ECLO Multipliers",
+        "06_PARAMETERS.csv": "System Parameters & Horizon",
         "07_PROJECT_DETAILS.csv": "Contract Details & Deadlines",
         "08_ACTIVITY_DETAILS.csv": "Activity Demand Book"
     }
@@ -55,7 +57,9 @@ with tab_upload:
         else:
             st.warning("Please upload at least one CSV file.")
 
+# -----------------------------------------------------------------------------
 # TAB 1: GANTT CHART & SOLVER
+# -----------------------------------------------------------------------------
 with tab_gantt:
     st.subheader("Nightly Track Possessions Schedule & Solver Engine")
     
@@ -83,8 +87,7 @@ with tab_gantt:
     if "schedule_data" in st.session_state and st.session_state["schedule_data"]:
         df_gantt = pd.DataFrame(st.session_state["schedule_data"])
         
-        # Query start date dynamically from 06_PARAMETERS.csv
-        base_date_str = "2026-01-01"
+        base_date_str = "2027-01-04"
         try:
             params_res = requests.get(f"{API_URL}/parameters", timeout=3).json()
             if params_res and "start_date" in params_res:
@@ -94,7 +97,7 @@ with tab_gantt:
             
         base_date = pd.to_datetime(base_date_str)
 
-        # Convert week numbers to calendar timeline dates
+        # Convert week numbers into calendar timeline dates
         df_gantt['start_date'] = df_gantt['week'].apply(lambda w: base_date + pd.Timedelta(weeks=int(w)-1))
         df_gantt['end_date'] = df_gantt['start_date'] + pd.Timedelta(days=6)
 
@@ -104,11 +107,11 @@ with tab_gantt:
             x_end="end_date",
             y="activity_id",
             color="contract_number",
-            title=f"Generated Track Possession Timeline - Scenario {scenario_code} (Base Start: {base_date_str})"
+            title=f"Generated Track Possession Timeline - Scenario {scenario_code} (Horizon Start: {base_date_str})"
         )
         
         fig.update_yaxes(autorange="reversed")
-        fig.update_layout(xaxis_title="Timeline Schedule")
+        fig.update_layout(xaxis_title="Calendar Timeline")
         
         st.plotly_chart(fig, use_container_width=True)
         
@@ -123,7 +126,9 @@ with tab_gantt:
         d_col2.download_button("💾 Download SCHEDULE_OCCUPANCY.csv", csv_occupancy, "SCHEDULE_OCCUPANCY.csv", "text/csv")
         d_col3.download_button("💾 Download RESULTS.csv", csv_results, "RESULTS.csv", "text/csv")
 
+# -----------------------------------------------------------------------------
 # TAB 2: TASK CHECKLIST
+# -----------------------------------------------------------------------------
 with tab_checklist:
     st.subheader("Activity Workload Checklist")
     try:
@@ -153,7 +158,9 @@ with tab_checklist:
     except Exception as e:
         st.error(f"Error connecting to backend API: {e}")
 
+# -----------------------------------------------------------------------------
 # TAB 3: AUDIT LOG
+# -----------------------------------------------------------------------------
 with tab_audit:
     st.subheader("System Change Audit Trail & Log History")
     try:
