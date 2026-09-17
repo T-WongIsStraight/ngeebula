@@ -97,7 +97,7 @@ with tab_gantt:
             
         base_date = pd.to_datetime(base_date_str)
 
-        # Convert week integers to calendar timeline dates
+        # Convert week numbers into calendar timeline dates
         df_gantt['start_date'] = df_gantt['week'].apply(lambda w: base_date + pd.Timedelta(weeks=int(w)-1))
         df_gantt['end_date'] = df_gantt['start_date'] + pd.Timedelta(days=6)
 
