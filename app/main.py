@@ -112,7 +112,7 @@ def solve_schedule(scenario: str):
     if projects_df.empty and os.path.exists(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv")):
         projects_df = pd.read_csv(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv"))
         
-    # 1. Run CP-SAT optimization solver
+    # 1. Run optimization solver
     access_df = run_track_optimization(activities_df, projects_df, scenario=scenario)
     
     # 2. Build SCHEDULE_OCCUPANCY dynamically
@@ -126,23 +126,13 @@ def solve_schedule(scenario: str):
     else:
         occupancy_df = pd.DataFrame(columns=['activity_id', 'week', 'location_id', 'co_share_group'])
     
-    # 3. Build RESULTS dynamically per contract with type-safe matching
+    # 3. Build RESULTS dynamically
     results_records = []
     if not access_df.empty and not projects_df.empty:
-        # Cast key columns to string to guarantee merge matching
-        activities_df['activity_id'] = activities_df['activity_id'].astype(str)
-        access_df['activity_id'] = access_df['activity_id'].astype(str)
+        merged = access_df.merge(activities_df[['activity_id', 'contract_number']], on="activity_id", how="left")
+        contract_max_week = merged.groupby('contract_number')['week'].max().to_dict() if 'contract_number' in merged.columns else {}
         
-        merged = access_df.merge(
-            activities_df[['activity_id', 'contract_number']], 
-            on="activity_id", 
-            how="inner"
-        )
-        
-        merged['contract_number'] = merged['contract_number'].astype(str).str.strip()
-        contract_max_week = merged.groupby('contract_number')['week'].max().to_dict()
-        
-        # Read horizon_start base date from 06_PARAMETERS.csv
+        # Read base horizon start date
         base_date = pd.to_datetime("2027-01-04")
         param_path = os.path.join(DATA_DIR, "06_PARAMETERS.csv")
         if os.path.exists(param_path):
@@ -155,22 +145,16 @@ def solve_schedule(scenario: str):
                 pass
 
         for _, proj in projects_df.iterrows():
-            c_num = str(proj.get('contract_number', '')).strip()
+            c_num = proj.get('contract_number', 'C101')
+            max_w = contract_max_week.get(c_num, 1)
             
-            # Look up max scheduled week for this contract
-            max_w = contract_max_week.get(c_num)
-            
-            if max_w is not None:
-                comp_date = base_date + pd.Timedelta(weeks=int(max_w))
-                comp_date_str = comp_date.strftime("%Y-%m-%d")
-            else:
-                comp_date = base_date
-                comp_date_str = base_date.strftime("%Y-%m-%d")
+            comp_date = base_date + pd.Timedelta(weeks=int(max_w))
+            comp_date_str = comp_date.strftime("%Y-%m-%d")
             
             target_date_str = str(proj.get('target_completion_date', '2027-12-31'))
             try:
                 target_date = pd.to_datetime(target_date_str)
-                overrun = max(0, (comp_date - target_date).days) if max_w else 0
+                overrun = max(0, (comp_date - target_date).days)
             except Exception:
                 overrun = 0
             
@@ -185,7 +169,7 @@ def solve_schedule(scenario: str):
     else:
         results_df = pd.DataFrame(columns=["scenario", "contract_number", "simulated_completion_date", "overrun_days"])
     
-    # 4. Export submission files
+    # 4. Export outputs to output directory
     export_submission_files(access_df, occupancy_df, results_df, output_dir=OUTPUT_DIR)
     
     return access_df.to_dict(orient="records")
