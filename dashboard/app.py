@@ -2,14 +2,12 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import requests
-import io
 
 API_URL = "http://localhost:8000/api"
 
 st.set_page_config(page_title="LTA Track Possession Control Center", layout="wide")
 st.title("🚊 LTA Railway Track Access Optimiser & Control Center")
 
-# Navigation Tabs
 tab_upload, tab_gantt, tab_checklist, tab_audit = st.tabs([
     "📁 Upload Input CSVs (Files 1–8)", 
     "📅 Interactive Gantt Chart", 
@@ -17,13 +15,9 @@ tab_upload, tab_gantt, tab_checklist, tab_audit = st.tabs([
     "📜 Audit Log & History"
 ])
 
-# -----------------------------------------------------------------------------
 # TAB 0: CSV FILE UPLOADER
-# -----------------------------------------------------------------------------
 with tab_upload:
-    st.subheader(" Upload Input Datasets (01 to 08)")
-    st.markdown("Upload your custom CSV datasets below. Once uploaded, the solver will process them dynamically.")
-    
+    st.subheader("Upload Input Datasets (01 to 08)")
     col1, col2 = st.columns(2)
     
     required_files = {
@@ -38,7 +32,6 @@ with tab_upload:
     }
     
     uploaded_files = {}
-    
     for idx, (filename, label) in enumerate(required_files.items()):
         target_col = col1 if idx % 2 == 0 else col2
         uploaded_files[filename] = target_col.file_uploader(f"Upload `{filename}` ({label})", type=["csv"], key=filename)
@@ -54,17 +47,15 @@ with tab_upload:
             try:
                 res = requests.post(f"{API_URL}/upload-datasets", files=files_to_send, timeout=15)
                 if res.status_code == 200:
-                    st.success(f" Successfully processed and loaded {len(files_to_send)} input dataset files into the solver backend!")
+                    st.success(f"Successfully loaded {len(files_to_send)} input dataset files into the backend!")
                 else:
                     st.error(f"Failed to upload files: {res.text}")
             except Exception as e:
                 st.error(f"Error connecting to backend API: {e}")
         else:
-            st.warning("Please upload at least one CSV file before submitting.")
+            st.warning("Please upload at least one CSV file.")
 
-# -----------------------------------------------------------------------------
-# TAB 1: GANTT CHART & SOLVER EXECUTION
-# -----------------------------------------------------------------------------
+# TAB 1: GANTT CHART & SOLVER
 with tab_gantt:
     st.subheader("Nightly Track Possessions Schedule & Solver Engine")
     
@@ -83,26 +74,44 @@ with tab_gantt:
                 res = requests.get(f"{API_URL}/solve/{scenario_code}", timeout=30).json()
                 if res:
                     st.session_state["schedule_data"] = res
-                    st.success(" Solver execution complete! Generated SCHEDULE_ACCESS.csv, SCHEDULE_OCCUPANCY.csv, and RESULTS.csv.")
+                    st.success("Solver execution complete! Generated SCHEDULE_ACCESS.csv, SCHEDULE_OCCUPANCY.csv, and RESULTS.csv.")
                 else:
                     st.warning("No valid schedule returned by solver.")
             except Exception as e:
                 st.error(f"Failed to run optimization solver: {e}")
 
-    # Render Gantt Chart
     if "schedule_data" in st.session_state and st.session_state["schedule_data"]:
         df_gantt = pd.DataFrame(st.session_state["schedule_data"])
+        
+        # Query start date dynamically from 06_PARAMETERS.csv
+        base_date_str = "2026-01-01"
+        try:
+            params_res = requests.get(f"{API_URL}/parameters", timeout=3).json()
+            if params_res and "start_date" in params_res:
+                base_date_str = params_res["start_date"]
+        except Exception:
+            pass
+            
+        base_date = pd.to_datetime(base_date_str)
+
+        # Convert week numbers to calendar timeline dates
+        df_gantt['start_date'] = df_gantt['week'].apply(lambda w: base_date + pd.Timedelta(weeks=int(w)-1))
+        df_gantt['end_date'] = df_gantt['start_date'] + pd.Timedelta(days=6)
+
         fig = px.timeline(
             df_gantt,
-            x_start="week",
-            x_end="week",
+            x_start="start_date",
+            x_end="end_date",
             y="activity_id",
             color="contract_number",
-            title=f"Generated Track Possession Timeline - Scenario {scenario_code}"
+            title=f"Generated Track Possession Timeline - Scenario {scenario_code} (Base Start: {base_date_str})"
         )
+        
+        fig.update_yaxes(autorange="reversed")
+        fig.update_layout(xaxis_title="Timeline Schedule")
+        
         st.plotly_chart(fig, use_container_width=True)
         
-        # Download Output Files Buttons
         st.markdown("### 📥 Download Submission CSV Outputs")
         d_col1, d_col2, d_col3 = st.columns(3)
         
@@ -114,9 +123,7 @@ with tab_gantt:
         d_col2.download_button("💾 Download SCHEDULE_OCCUPANCY.csv", csv_occupancy, "SCHEDULE_OCCUPANCY.csv", "text/csv")
         d_col3.download_button("💾 Download RESULTS.csv", csv_results, "RESULTS.csv", "text/csv")
 
-# -----------------------------------------------------------------------------
-# TAB 2: TASK CHECKLIST & CRUD
-# -----------------------------------------------------------------------------
+# TAB 2: TASK CHECKLIST
 with tab_checklist:
     st.subheader("Activity Workload Checklist")
     try:
@@ -142,13 +149,11 @@ with tab_checklist:
                 st.success("Changes saved and audit log updated!")
                 st.rerun()
         else:
-            st.warning("No tasks loaded. Please upload 08_ACTIVITY_DETAILS.csv in Tab 1.")
+            st.warning("No tasks loaded.")
     except Exception as e:
         st.error(f"Error connecting to backend API: {e}")
 
-# -----------------------------------------------------------------------------
-# TAB 3: AUDIT LOG & HISTORY
-# -----------------------------------------------------------------------------
+# TAB 3: AUDIT LOG
 with tab_audit:
     st.subheader("System Change Audit Trail & Log History")
     try:
