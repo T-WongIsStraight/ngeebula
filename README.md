@@ -41,7 +41,9 @@ The project is structured as a decoupled full-stack application:
 ### 3. Launch the FastAPI Backend Environment
 * cd ~/ngeebula/backend
 * GEMINI_API_KEY="gemini_api_key" python3 -m uvicorn main:app --reload --port 8000
+* Go to http://127.0.0.1:8000/docs and you will be able to access the backend environment
 
 ### 4. Launch the StreamLit Frontend Dashboard
 * cd ~/ngeebula/frontend
 * streamlit run app.py
+* A window should pop up which will show the system's dashboard
