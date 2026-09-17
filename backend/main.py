@@ -15,18 +15,17 @@ database.init_db()
 
 app = FastAPI(title="SMRT Railway Maintenance Backend API", version="4.0")
 
-# --- Safe Gemini API Client Initialization ---
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
-
-if GEMINI_API_KEY:
+# --- On-Demand Gemini Client Helper ---
+def get_gemini_client():
+    """Instantiates client on-demand to prevent async cleanup crashes on startup."""
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
     try:
-        client = genai.Client(api_key=GEMINI_API_KEY)
+        return genai.Client(api_key=api_key)
     except Exception as e:
-        client = None
-        print(f"Warning: Failed to initialize Gemini client: {e}")
-else:
-    client = None
-    print("WARNING: GEMINI_API_KEY is not set in environment variables. AI features will fallback to default logic.")
+        print(f"Gemini client initialization error: {e}")
+        return None
 
 STATUS_COLORS = {
     "Done": "Green",
@@ -116,6 +115,7 @@ def parse_job_and_create(job_in: JobInput, db: Session = Depends(get_db)):
     days_to_deadline = (job_in.deadline - now).days
 
     ai_eval = None
+    client = get_gemini_client()
 
     if client:
         prompt = f"""
@@ -275,6 +275,8 @@ def propose_schedule_options(db: Session = Depends(get_db)):
     db.commit()
 
     options = None
+    client = get_gemini_client()
+
     if client:
         prompt = f"Baseline schedule: {json.dumps(base_schedule)}. Output 3 options in JSON: Option 1: Optimal, Option 2: Priority-Focused, Option 3: Balanced Workload."
         try:
@@ -350,6 +352,7 @@ def update_checklist_status(job_id: int, payload: ChecklistUpdate, db: Session =
         else:
             job.error_reason = payload.reason
             
+        client = get_gemini_client()
         if client:
             prompt = f"Repair Job '{job.name}' updated to {new_status}. Reason: '{payload.reason}'. Suggest next course of action and schedule shift."
             try:
