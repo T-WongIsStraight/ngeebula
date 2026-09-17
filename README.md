@@ -30,3 +30,18 @@ The project is structured as a decoupled full-stack application:
 * **Backend**: Python, FastAPI, SQLAlchemy (SQLite), Google OR-Tools, Google GenAI SDK (`gemini-2.5-flash`).
 * **Frontend**: Python, Streamlit, HTML/CSS dashboard styling.
 * **Database**: Local JSON catalogs (`stations_db.json`, `maintenance_db.json`, `engineers_db.json`) combined with an active SQLite database (`smrt_maintenance.db`).
+
+## How to use
+### 1. Set Up Environment & Install Dependencies
+* Clone the repository and install required packages: git clone [https://github.com/notjerrygoh/ngeebula.git](https://github.com/notjerrygoh/ngeebula.git)
+
+### 2. Install dependencies for both backend and frontend
+* pip install fastapi uvicorn sqlalchemy ortools google-genai requests streamlit
+
+### 3. Launch the FastAPI Backend Environment
+* cd ~/ngeebula/backend
+* GEMINI_API_KEY="gemini_api_key" python3 -m uvicorn main:app --reload --port 8000
+
+### 4. Launch the StreamLit Frontend Dashboard
+* cd ~/ngeebula/frontend
+* streamlit run app.py
