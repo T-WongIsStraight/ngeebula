@@ -1,46 +1,47 @@
 import os
 import io
 import pandas as pd
-from typing import List, Dict, Any
+from typing import List
 from fastapi import FastAPI, UploadFile, File, Response, HTTPException
-from app.solver import solve_schedule, load_instance, write_submission
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="LTA Track Access Optimiser API")
+from app.solver import load_instance, solve_schedule, write_submission
 
-DATA_DIR = "data"
-OUTPUT_DIR = "output"
+app = FastAPI(title="NebulaX PS1 Railway Track Access API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+DATA_DIR = os.getenv("DATA_DIR", "data")
+OUTPUT_DIR = os.getenv("OUTPUT_DIR", "output")
 os.makedirs(DATA_DIR, exist_ok=True)
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 
-def get_loaded_tables() -> Dict[str, Any]:
-    """Helper to load all 8 required CSVs from the data folder."""
-    try:
-        return load_instance(DATA_DIR)
-    except Exception as e:
-        print(f"Warning: Could not load datasets from {DATA_DIR}: {e}")
-        return {}
-
-
 @app.get("/api/health")
 def health_check():
-    data = get_loaded_tables()
-    has_data = bool(data and "activity_details" in data)
-    return {
-        "status": "ok",
-        "loaded_activities": len(data.get("activity_details", [])) if has_data else 0
-    }
+    return {"status": "ok", "service": "LTA Track Access Control API"}
 
 
 @app.get("/api/parameters")
 def get_parameters():
-    data = get_loaded_tables()
-    if data and "parameters" in data:
-        params = {row.get("key"): row.get("value") for row in data["parameters"] if row.get("key")}
-        return {
-            "start_date": params.get("horizon_start", "2027-01-04"),
-            "horizon_weeks": int(params.get("horizon_weeks", 30))
-        }
+    param_path = os.path.join(DATA_DIR, "06_PARAMETERS.csv")
+    if os.path.exists(param_path):
+        try:
+            df_params = pd.read_csv(param_path)
+            if "key" in df_params.columns and "value" in df_params.columns:
+                param_dict = dict(zip(df_params["key"], df_params["value"]))
+                return {
+                    "start_date": str(param_dict.get("horizon_start", "2027-01-04")),
+                    "horizon_weeks": int(param_dict.get("horizon_weeks", 30))
+                }
+        except Exception as e:
+            print(f"Error parsing parameters: {e}")
     return {"start_date": "2027-01-04", "horizon_weeks": 30}
 
 
@@ -53,43 +54,59 @@ async def upload_datasets(files: List[UploadFile] = File(...)):
         with open(file_path, "wb") as f:
             f.write(content)
         saved_files.append(file.filename)
-
     return {"status": "success", "uploaded_files": saved_files}
 
 
 @app.get("/api/solve/{scenario}")
-def run_solver_endpoint(scenario: str, time_limit: float = 30.0):
-    scenario_code = scenario.upper()
-    if scenario_code not in {"A", "B", "C"}:
-        raise HTTPException(status_code=400, detail="Scenario must be A, B, or C")
+def solve_scenario_endpoint(
+    scenario: str,
+    time_limit: float = 30.0,
+    workers: int = None
+):
+    scen_clean = scenario.upper()
+    if scen_clean not in ["A", "B", "C"]:
+        raise HTTPException(
+            status_code=400, 
+            detail="Invalid scenario. Must be 'A', 'B', or 'C'."
+        )
 
-    data = get_loaded_tables()
-    if not data or "activity_details" not in data:
-        raise HTTPException(status_code=400, detail="Required CSV datasets (01-08) not uploaded yet.")
+    try:
+        # Ingest datasets using solver's parser
+        instance_data = load_instance(DATA_DIR)
+        
+        # Execute CP-SAT optimization model
+        result = solve_schedule(
+            instance_data,
+            scenario=scen_clean,
+            time_limit_seconds=time_limit,
+            num_workers=workers
+        )
+        
+        if result.get("status") != "success":
+            raise HTTPException(
+                status_code=500, 
+                detail=result.get("message", "Solver failed to find a feasible solution.")
+            )
 
-    # Execute your solver.py engine
-    result = solve_schedule(
-        data=data,
-        scenario=scenario_code,
-        time_limit_seconds=time_limit
-    )
-
-    if result.get("status") == "success":
-        # Write the 3 official submission CSVs to output directory
+        # Export official submission files
         write_submission(result, OUTPUT_DIR)
+        
+        return result
 
-    return result
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @app.get("/api/download/{filename}")
-def download_file(filename: str):
+def download_submission_file(filename: str):
+    valid_files = ["SCHEDULE_ACCESS.csv", "SCHEDULE_OCCUPANCY.csv", "RESULTS.csv"]
+    if filename not in valid_files:
+        raise HTTPException(status_code=400, detail="Invalid submission file request.")
+
     file_path = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(file_path):
         with open(file_path, "r", encoding="utf-8") as f:
             content = f.read()
         return Response(content=content, media_type="text/csv")
     
-    return Response(
-        content="activity_id,access_seq,week,eclo,access_night\n", 
-        media_type="text/csv"
-    )
+    raise HTTPException(status_code=404, detail=f"File {filename} not generated yet.")
