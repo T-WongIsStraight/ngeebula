@@ -4,26 +4,22 @@ __pycache__/
 *$py.class
 .pytest_cache/
 
-# Environments
+# Virtual Environments
 .venv/
 venv/
 ENV/
 env/
 
-# SQLite & Local Audit Store
+# SQLite Audit Database
 *.db
 *.sqlite
 database/*.db
 
-# Dynamic CSV Input and Output Files
+# Runtime CSV Datasets and Outputs
 *.csv
 data/*.csv
 output/*.csv
 
-# Operating System Files
+# System Files
 .DS_Store
 Thumbs.db
-
-# IDE Configuration
-.vscode/
-.idea/
