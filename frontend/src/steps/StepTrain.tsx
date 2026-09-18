@@ -1,19 +1,27 @@
-// Progress bar drawn like a train line: 3 stations, the train sits at the current step.
+// Progress bar drawn like a train line: 3 stations, the train sits at the step
+// you are on.
 
-const STEPS = ["Load files", "Choose rules", "Schedule"];
+const STEPS = ["Load files", "Choose rules", "Schedule"] as const;
 
-export function StepTrain({ step }: { step: 1 | 2 | 3 }) {
+export type StepNumber = 1 | 2 | 3;
+
+export function StepTrain({ step }: { step: StepNumber }) {
   return (
     <nav className="steptrain" aria-label="Progress">
       <div className="track" />
       <div className="track done" style={{ width: `${((step - 1) / 2) * 100}%` }} />
       {STEPS.map((label, i) => {
-        const n = (i + 1) as 1 | 2 | 3;
+        const n = (i + 1) as StepNumber;
         const state = n < step ? "done" : n === step ? "current" : "todo";
         return (
           <div key={label} className={"station " + state} style={{ left: `${(i / 2) * 100}%` }}>
-            <div className="dot">{n < step ? "" : n}</div>
-            <div className="label"><b>Step {n}</b><span>{label}</span></div>
+            <div className="dot" aria-current={n === step ? "step" : undefined}>
+              {n < step ? "✓" : n}
+            </div>
+            <div className="label">
+              <b>Step {n}</b>
+              <span>{label}</span>
+            </div>
           </div>
         );
       })}

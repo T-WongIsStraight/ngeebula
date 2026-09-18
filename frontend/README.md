@@ -1,73 +1,105 @@
-# Track Access Scheduler — frontend prototype
+# Track Access Scheduler — web app
 
-A clickable demo of the PS1 web app. React + Vite + TypeScript, no backend needed yet. Dark theme, works on phone, tablet and desktop. Written for a works controller at 2 AM.
+The judge-facing front end for NebulaX PS1. A works controller (or a judge)
+drops in the 8 instance CSVs, picks a rulebook (Scenario A, B or C), and gets
+back a checked schedule: a verdict, a score with its breakdown, who finishes
+late, two grids (jobs by week, track spots by week), a plain-English reason for
+every job, and the 3 submission CSVs to download.
 
-## Run it
+React 19 + TypeScript + Vite, plain CSS, no UI framework, no router, no chart
+library.
+
+**It never decides anything itself.** Every number on screen — feasible or not,
+score, late days, extra nights, ECLO nights — comes from the backend's own
+validator report (`app/validator.py`, CLAUDE.md §8.2). The only checks done in
+the browser are: the 8 uploaded files have the official names, their header rows
+carry the expected columns (CLAUDE.md §4), and a row-count summary of what you
+loaded. There is no bundled schedule and no demo mode.
+
+## Run it locally
+
+You need the backend running first (from the repo root):
+
+```powershell
+.\run.ps1              # FastAPI on http://localhost:8000
+```
+
+Then:
 
 ```bash
 cd frontend
 npm install
-npm run dev
+npm run dev            # http://localhost:5173
 ```
 
-Then open http://localhost:5173
+`npm run dev` proxies every `/api/...` call to `http://localhost:8000`. Point it
+somewhere else with `VITE_DEV_API`:
 
-## The 3 steps
+```bash
+VITE_DEV_API=http://127.0.0.1:8040 npm run dev
+```
 
-A train-line progress bar at the top shows where you are.
+The **"Load the official PS1 sample instance"** button on step 1 fetches the 8
+CSVs in `public/sample/` and submits them exactly as if you had dragged them in,
+so the sample path exercises the same code as a judge's upload.
 
-**Step 1 · Load files.** Choose the 8 CSV files, or press "Use the sample files instead". Each file is parsed in the browser and checked for the columns it must have. Once all 8 pass, a summary appears: planning period, network size, contracts, jobs, work-nights needed, access-nights available.
+## Environment variables
 
-**Step 2 · Choose rules.** Pick rulebook A, B or C. Each card shows whether finishing late, ECLO nights and extra nights are allowed and what they cost. A short "Why A/B/C?" box gives when to use it, an example, and the late-day prices.
+Copy `.env.example` to `.env.local` for local overrides.
 
-**Conflicts and alternatives (Step 3).** "Conflicts the planner resolved" lists every job that wanted a spot that was full: which weeks it waited, which spots, who held them, what the planner did, and how late the contract ended up. Open a line for priced alternatives: swap with a lower-priority holder, use 2 ECLO nights, overbook, or keep the planner's choice. Options the rulebook forbids are greyed out.
+| Variable | When | Meaning |
+| --- | --- | --- |
+| `VITE_DEV_API` | dev only | Where `npm run dev` forwards `/api` requests. Default `http://localhost:8000`. |
+| `VITE_API_BASE_URL` | build time | Base URL of the hosted backend, no trailing slash. Empty (default) means "same origin as the page". |
 
-**Urgent request (Step 3, the standout feature).** Type in a new job: line, rail, from/to tunnel, nights, earliest week, priority, work type. "Check for clashes" scans every week, shows a clear / tight / full strip, names the jobs in the way, suggests bumping lower-priority holders, and proposes the earliest clear weeks. "Add to schedule" drops it in as job U001 under contract URGENT and recalculates score, table, grids and explanations on the spot.
+## Build
 
-**Light / dark.** A switch in the top-right corner. The knob is a train that slides between Night and Day; colours fade over half a second. The choice is remembered in the browser.
+```bash
+npm run build          # tsc -b && vite build  ->  dist/
+npm run preview        # serve dist/ locally
+npm run lint           # oxlint
+```
 
-**Step 3 · Schedule.** A loading train runs while the solver works, then:
-- A one-sentence verdict: valid or not, how many contracts are late, and the most important late one.
-- Tiles: rules used, score, contracts late, ECLO nights, extra nights.
-- Where the score comes from (three lines that add up to the score).
-- Download buttons for the 3 submission CSVs.
-- Contracts table, most important first, with deadline, finish date, late days, points.
-- **Jobs by week**: contracts folded by default; open one to see its jobs as dots, one per night. E = ECLO night, hollow dot = waiting for a spot, orange line = deadline week.
-- **Track spots by week**: 76 spots, cell = bookings that week, red = over the limit. Click a cell to see who is in it.
-- Week range: 1-10, 11-20, 21-30, or any from/to.
-- Explain panel: click a job for plain-English reasons, spots booked, sharers, and cost. On phones it slides up from the bottom.
+A production build with an empty `VITE_API_BASE_URL` expects the API on the same
+origin. When the API lives elsewhere (the usual case), set the variable at build
+time.
 
-## Prototype data
+## Deploy to Netlify
 
-| Rules picked | Data shown |
-| --- | --- |
-| A, B | Organisers' sample schedule. Valid. Only Priority 3 contracts late. Score 28. |
-| C | Hand-edited mock (`src/data/mockScenarioC.ts`) so every cost type is visible: a P1 contract late (+700), a P2 late (+70), 2 ECLO nights (+10), 5 extra nights (+35). Score 843. |
+`netlify.toml` at the repo root already points Netlify at this folder:
 
-Uploading real files works for Step 1. For Step 3 the prototype only has a schedule for the sample jobs, so if the uploaded files list different jobs it shows the sample and says so.
+```toml
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
+```
 
-## Files (read in this order)
+1. In Netlify, create a site from the repo (no extra build settings needed).
+2. Add the environment variable **`VITE_API_BASE_URL`** = the public URL of the
+   FastAPI backend, e.g. `https://ngeebula-api.onrender.com` (no trailing
+   slash), then deploy. The variable is baked in at build time, so changing it
+   needs a redeploy.
+3. The backend must allow the Netlify origin through CORS and keep `JOBS_DIR`
+   writable, otherwise downloads and polling fail.
 
-| File | What it does |
-| --- | --- |
-| `src/App.tsx` | The 3-step flow and the loading overlay |
-| `src/StepTrain.tsx` | The train-line progress bar |
-| `src/Step1Upload.tsx` | Load and check the 8 files, show the summary |
-| `src/Step2Rules.tsx` | Pick A/B/C with the "Why?" box |
-| `src/ResultScreen.tsx` | Step 3: verdict, tiles, score, table, grids, explain panel |
-| `src/Timeline.tsx` | Jobs-by-week grid |
-| `src/Heatmap.tsx` | Spots-by-week grid |
-| `src/ExplainPanel.tsx` | Side panel for one job |
-| `src/Loading.tsx` | The looping train |
-| `src/ConflictsCard.tsx` | The list of resolved conflicts with alternatives |
-| `src/UrgentRequest.tsx` | The urgent request form, clash check, and add-to-schedule |
-| `src/conflicts.ts` | Conflict detection, alternatives, request checking, applying a request |
-| `src/csv.ts` | CSV parsing, file checks, instance summary |
-| `src/schedule.ts` | All the maths: week dates, finish dates, late days, points, bookings, explanations |
-| `src/fakeSolver.ts` | Pretends to be the solver. **Replace with `fetch("/api/solve")` when the backend is ready.** |
-| `src/types.ts` | One TypeScript type per CSV, plus the point values |
-| `src/index.css` | All styling, including phone and tablet rules |
+Drag-and-drop deploys work too: `npm run build` and drop `frontend/dist` on
+Netlify — but build it with `VITE_API_BASE_URL` set, or the app will look for
+the API on the Netlify domain.
 
-## Swapping in the real backend
+## Layout
 
-`fakeSolve(scenario, instance)` returns a `SolveResult` (see `src/types.ts`). The backend should return the same shape: the parsed input tables, the 3 output tables, `feasible`, `violations`, and ideally `explanations` per job. If it only returns the 3 CSVs, call `buildResult(...)` from `fakeSolver.ts` to fill in the rest on the frontend.
+```
+src/
+  api.ts             the only file that talks to the backend (solve, poll, download URLs)
+  types.ts           mirror of the backend contract (CLAUDE.md §8.2)
+  App.tsx            the 3-step flow: upload -> rules -> result, plus running and failure screens
+  steps/             Step1Upload, Step2Rules, Running, Failed, ResultScreen, StepTrain, ThemeToggle
+  views/             Timeline, Heatmap, ExplainPanel (the two grids and the explain panel)
+  lib/               dates, csvHeader, instanceFiles, summary — pure helpers, no scoring
+  index.css          the whole theme: custom properties on :root (light) and [data-theme="dark"]
+public/sample/       the 8 official PS1 instance CSVs behind the sample button
+```
+
+Failure has its own screen for each backend status: `infeasible`, `timeout` and
+`error` each show the server's message and what to do next.

@@ -1,0 +1,586 @@
+/* Grid views — Timeline, Heatmap, ExplainPanel. No colour is hard-coded here.
+   Relies on these theme variables from index.css (light and dark): --surface,
+   --surface-2, --text, --muted, --border, --accent, --accent-text, --ok, --warn,
+   --bad, --p1, --p2, --p3, --heat0..--heat4, --dl, --font, --radius, --shadow. */
+
+.grid-card {
+  font-family: var(--font);
+  color: var(--text);
+}
+
+.grid-scroll {
+  /* Both axes scroll inside the card, so the sticky header and sticky first
+     column stay put while the controller scans a 30-week grid. */
+  overflow: auto;
+  max-height: min(70vh, 720px);
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  max-width: 100%;
+}
+
+.grid-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+  width: auto;
+  table-layout: fixed;
+}
+
+.grid-table th,
+.grid-table td {
+  border-right: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 0;
+  height: 30px;
+  text-align: center;
+  font-weight: 400;
+  box-sizing: border-box;
+}
+
+/* sticky header row */
+.grid-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface-2);
+  color: var(--muted);
+  padding: 3px 2px;
+  min-width: 34px;
+  width: 34px;
+}
+
+.grid-table thead th .wk-num {
+  display: block;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.grid-table thead th small {
+  display: block;
+  font-size: 9px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* sticky first column */
+.grid-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--surface);
+  min-width: 230px;
+  width: 230px;
+  text-align: left;
+  white-space: nowrap;
+  padding: 0 8px;
+  border-right: 1px solid var(--border);
+}
+
+.grid-table thead th.grid-sticky-col {
+  z-index: 3;
+  background: var(--surface-2);
+  color: var(--text);
+  font-weight: 600;
+  /* repeated so the header corner never inherits the narrow week-column width */
+  min-width: 230px;
+  width: 230px;
+}
+
+/* ------------------------------------------------------------- timeline */
+
+.contract-row > th.grid-sticky-col,
+.contract-row > td {
+  background: var(--surface-2);
+}
+
+.contract-row > th.grid-sticky-col {
+  padding: 0;
+}
+
+.fold,
+.jobbtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 29px;
+  padding: 0 8px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fold:hover,
+.jobbtn:hover {
+  color: var(--accent);
+}
+
+.fold:focus-visible,
+.jobbtn:focus-visible,
+.heat-btn:focus-visible,
+.chip:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.fold {
+  font-weight: 600;
+}
+
+.caret {
+  display: inline-block;
+  width: 10px;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.cname {
+  font-variant-numeric: tabular-nums;
+}
+
+.cjobs,
+.jnights {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* index.css owns the .pri pill; these only tighten it for the dense grid rows. */
+.grid-card .pri,
+.explain .pri {
+  display: inline-block;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 16px;
+}
+
+.grid-card .pri.p1,
+.explain .pri.p1 {
+  background: var(--p1);
+}
+.grid-card .pri.p2,
+.explain .pri.p2 {
+  background: var(--p2);
+}
+.grid-card .pri.p3,
+.explain .pri.p3 {
+  background: var(--p3);
+}
+
+.tag {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--border);
+}
+
+.tag-ok {
+  color: var(--ok);
+  border-color: var(--ok);
+}
+
+.tag-late {
+  color: var(--bad);
+  border-color: var(--bad);
+}
+
+.indent {
+  display: inline-block;
+  width: 14px;
+}
+
+.jname {
+  font-variant-numeric: tabular-nums;
+}
+
+.job-row.is-selected > th.grid-sticky-col,
+.job-row.is-selected > td {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+.job-row.is-selected .jobbtn {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.timeline-table td.span .spanbar {
+  display: block;
+  height: 5px;
+  margin: 12px 0;
+  background: color-mix(in srgb, var(--muted) 45%, transparent);
+}
+
+.timeline-table td.span-start .spanbar {
+  border-radius: 999px 0 0 999px;
+  margin-left: 4px;
+}
+
+.timeline-table td.span-end .spanbar {
+  border-radius: 0 999px 999px 0;
+  margin-right: 4px;
+}
+
+.grid-table td.deadline,
+.grid-table th.deadline {
+  box-shadow: inset -2px 0 0 0 var(--dl);
+}
+
+.dot {
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 0 auto;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+  color: var(--accent-text);
+  font-style: normal;
+}
+
+.dot.p1 {
+  background: var(--p1);
+}
+.dot.p2 {
+  background: var(--p2);
+}
+.dot.p3 {
+  background: var(--p3);
+}
+
+.dot.eclo {
+  box-shadow: 0 0 0 2px var(--dl) inset;
+}
+
+.dot.wait {
+  width: 8px;
+  height: 8px;
+  background: transparent;
+  border: 1px solid var(--muted);
+}
+
+/* -------------------------------------------------------------- heatmap */
+
+.group-row th {
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: left;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+  padding: 4px 8px;
+  min-width: 230px;
+}
+
+.hub-row > th.grid-sticky-col {
+  font-weight: 700;
+  color: var(--warn);
+}
+
+.hub-mark {
+  color: var(--warn);
+  margin-right: 4px;
+}
+
+.spot-cap {
+  color: var(--muted);
+  margin-left: 4px;
+  font-weight: 400;
+}
+
+.heat-table td.heat {
+  padding: 0;
+}
+
+.heat-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  height: 29px;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.heat-glyph {
+  font-size: 8px;
+  line-height: 1;
+}
+
+td.heat0 {
+  background: var(--heat0);
+}
+td.heat1 {
+  background: var(--heat1);
+}
+td.heat2 {
+  background: var(--heat2);
+}
+td.heat3 {
+  background: var(--heat3);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+td.heat4 {
+  background: var(--heat4);
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+td.heat.is-picked {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.legend-box {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.cell-detail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 13px;
+}
+
+.chip {
+  padding: 4px 12px;
+  min-height: 30px;
+  font-size: 13px;
+  font-family: inherit;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.chip:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.chip small {
+  color: var(--muted);
+}
+
+/* --------------------------------------------------------------- legend */
+
+.grid-legend {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin: 8px 0 4px;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.grid-legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.grid-legend .dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  line-height: 14px;
+  font-size: 9px;
+}
+
+.grid-legend .dot.wait {
+  width: 8px;
+  height: 8px;
+}
+
+.grid-legend .sw {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 14px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font-size: 8px;
+  color: var(--text);
+}
+
+.grid-legend .sw.heat0 {
+  background: var(--heat0);
+}
+.grid-legend .sw.heat1 {
+  background: var(--heat1);
+}
+.grid-legend .sw.heat2 {
+  background: var(--heat2);
+}
+.grid-legend .sw.heat3 {
+  background: var(--heat3);
+  color: var(--accent-text);
+}
+.grid-legend .sw.heat4 {
+  background: var(--heat4);
+  color: var(--accent-text);
+}
+
+.grid-legend .dl-swatch {
+  display: inline-block;
+  width: 3px;
+  height: 14px;
+  background: var(--dl);
+}
+
+.grid-legend.limits b {
+  display: inline-block;
+  min-width: 20px;
+  text-align: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 0 4px;
+  margin-right: 4px;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-title {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.grid-hint {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+/* ---------------------------------------------------------- explain panel */
+
+/* index.css owns where the panel sits and how it is boxed; only type here. */
+.explain {
+  font-family: var(--font);
+  color: var(--text);
+  font-size: 14px;
+}
+
+.explain-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.explain .eyebrow {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+}
+
+.explain ul.reasons,
+.explain ul.plain {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.explain ul.reasons li,
+.explain ul.plain li {
+  margin-bottom: 5px;
+  line-height: 1.45;
+}
+
+.explain-dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 12px;
+  margin: 0;
+  font-size: 13px;
+}
+
+.explain-dl dt {
+  color: var(--muted);
+}
+
+.explain-dl dd {
+  margin: 0;
+}
+
+.eclo-tag {
+  color: var(--dl);
+  font-weight: 700;
+}
+
+.outcome-ok {
+  color: var(--ok);
+  margin: 0;
+}
+
+.outcome-late {
+  color: var(--bad);
+  margin: 0;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ----------------------------------------------------------------- phone */
+
+@media (max-width: 640px) {
+  .grid-sticky-col,
+  .grid-table thead th.grid-sticky-col,
+  .group-row th {
+    min-width: 150px;
+    width: 150px;
+  }
+
+  .grid-table {
+    font-size: 11px;
+  }
+
+  .tag {
+    display: none;
+  }
+
+  .explain {
+    font-size: 13px;
+  }
+}

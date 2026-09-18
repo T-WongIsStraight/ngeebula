@@ -33,3 +33,6 @@ Thumbs.db
 # IDE Configuration
 .vscode/
 .idea/
+
+# Local editor/agent config
+.claude/

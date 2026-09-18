@@ -1,0 +1,8 @@
+# Netlify builds the React app in frontend/ and serves the static bundle.
+# Set VITE_API_BASE_URL in the Netlify site's environment variables to the
+# public URL of the FastAPI backend before deploying.
+
+[build]
+  base = "frontend"
+  command = "npm run build"
+  publish = "dist"
