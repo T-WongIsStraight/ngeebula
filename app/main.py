@@ -1,5 +1,4 @@
 import os
-import io
 import pandas as pd
 from typing import List
 from fastapi import FastAPI, UploadFile, File, Response, HTTPException
@@ -25,7 +24,8 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "service": "LTA Track Access Control API"}
+    has_activities = os.path.exists(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv"))
+    return {"status": "ok", "service": "LTA Track Access Control API", "data_present": has_activities}
 
 
 @app.get("/api/parameters")
@@ -41,7 +41,7 @@ def get_parameters():
                     "horizon_weeks": int(param_dict.get("horizon_weeks", 30))
                 }
         except Exception as e:
-            print(f"Error parsing parameters: {e}")
+            print(f"Error parsing 06_PARAMETERS.csv: {e}")
     return {"start_date": "2027-01-04", "horizon_weeks": 30}
 
 
@@ -71,10 +71,10 @@ def solve_scenario_endpoint(
         )
 
     try:
-        # Ingest datasets using solver's parser
+        # 1. Ingest input datasets via canonical solver parser
         instance_data = load_instance(DATA_DIR)
         
-        # Execute CP-SAT optimization model
+        # 2. Run CP-SAT optimization model
         result = solve_schedule(
             instance_data,
             scenario=scen_clean,
@@ -88,7 +88,7 @@ def solve_scenario_endpoint(
                 detail=result.get("message", "Solver failed to find a feasible solution.")
             )
 
-        # Export official submission files
+        # 3. Write submission outputs (SCHEDULE_ACCESS.csv, SCHEDULE_OCCUPANCY.csv, RESULTS.csv)
         write_submission(result, OUTPUT_DIR)
         
         return result
@@ -101,7 +101,7 @@ def solve_scenario_endpoint(
 def download_submission_file(filename: str):
     valid_files = ["SCHEDULE_ACCESS.csv", "SCHEDULE_OCCUPANCY.csv", "RESULTS.csv"]
     if filename not in valid_files:
-        raise HTTPException(status_code=400, detail="Invalid submission file request.")
+        raise HTTPException(status_code=400, detail="Invalid submission filename requested.")
 
     file_path = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(file_path):
