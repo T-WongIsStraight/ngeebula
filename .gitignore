@@ -20,6 +20,12 @@ database/*.db
 data/*.csv
 output/*.csv
 
+# Per-request solve folders (uploads + generated CSVs)
+jobs/
+
+# ...but the deliverable CSVs must be committable
+!submissions/**/*.csv
+
 # Operating System Files
 .DS_Store
 Thumbs.db
