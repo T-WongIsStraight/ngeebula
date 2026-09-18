@@ -1,0 +1,15 @@
+# Dark by default — the control-room look, matching the React app's
+# [data-theme="dark"] palette in frontend/src/index.css.
+# Viewers can switch to light from Streamlit's own Settings menu (the ⋮ button,
+# top right); Streamlit derives a matching light palette from these tokens.
+
+[theme]
+base = "dark"
+primaryColor = "#3b82f6"
+backgroundColor = "#0f1115"
+secondaryBackgroundColor = "#181b21"
+textColor = "#e8eaee"
+font = "sans-serif"
+
+[server]
+headless = true

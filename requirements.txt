@@ -3,3 +3,5 @@ uvicorn==0.52.4
 python-multipart==0.0.32
 pandas==2.3.3
 ortools==9.15.6755
+streamlit==1.63.0
+plotly==6.9.0

@@ -25,9 +25,9 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 
-from app.explain import explain
-from app.solver import load_instance, solve_schedule, write_submission
-from app.validator import capacity_usage, horizon, table, validate
+from app.pipeline import run_pipeline
+from app.solver import load_instance
+from app.validator import validate
 
 VERSION = "2.0.0"
 
@@ -254,128 +254,26 @@ def _public_job(job: Dict[str, Any]) -> Dict[str, Any]:
 # the solve itself
 # --------------------------------------------------------------------------- #
 
-def _instance_summary(instance: Mapping[str, Any]) -> Dict[str, Any]:
-    horizon_start, horizon_weeks = horizon(instance)
-    return {
-        "horizon_start": horizon_start.isoformat(),
-        "horizon_weeks": horizon_weeks,
-        "contracts": table(instance, "project_details"),
-        "activities": table(instance, "activity_details"),
-        "locations": table(instance, "location_supply"),
-        "sectors": table(instance, "sectors"),
-    }
-
-
-def _join_results(
-    instance: Mapping[str, Any], results: List[Dict[str, Any]]
-) -> List[Dict[str, Any]]:
-    projects = {
-        str(row.get("contract_number", "")).strip(): row
-        for row in table(instance, "project_details")
-    }
-    joined = []
-    for row in results:
-        contract = str(row.get("contract_number", "")).strip()
-        project = projects.get(contract, {})
-        merged = dict(row)
-        merged["contract_priority"] = project.get("contract_priority")
-        merged["planned_completion_date"] = project.get("planned_completion_date")
-        joined.append(merged)
-    return joined
-
-
-_FAILURE_STATUS = {
-    "INFEASIBLE": ("infeasible", "The rules cannot all be satisfied for this instance."),
-    "UNKNOWN": ("timeout", "The solver ran out of time before it found a schedule."),
-    "MODEL_INVALID": ("error", "The instance produced an invalid model."),
-}
-
-
 def _run_job(job: Dict[str, Any]) -> None:
-    started = time.time()
+    """Run one job's solve. All the work lives in ``app.pipeline``."""
     folder = Path(job["folder"])
-    scenario = job["scenario"]
-    try:
-        instance = load_instance(folder)
-        result = solve_schedule(
-            instance,
-            scenario=scenario,
-            time_limit_seconds=job["time_limit"],
-            num_workers=SOLVER_WORKERS,
-        )
-        solver_status = result.get("solver_status")
-        if result.get("status") != "success":
-            status, default_message = _FAILURE_STATUS.get(
-                str(solver_status), ("infeasible", "The solver did not return a schedule.")
-            )
-            _finish(
-                job,
-                status=status,
-                message=result.get("message") or default_message,
-                solver_status=solver_status,
-                elapsed=time.time() - started,
-            )
-            return
-
-        access = [dict(r) for r in result.get("schedule_access", [])]
-        occupancy = [dict(r) for r in result.get("schedule_occupancy", [])]
-        results_rows = [dict(r) for r in result.get("results", [])]
-
-        write_submission(result, folder)
-
-        report = validate(instance, access, occupancy, results_rows, scenario)
-        usage = result.get("capacity_usage") or capacity_usage(instance, occupancy)
-        metrics = result.get("metrics") or {}
-
-        solve_result = {
-            "scenario": scenario,
-            "instance": _instance_summary(instance),
-            "schedule_access": access,
-            "schedule_occupancy": occupancy,
-            "results": _join_results(instance, results_rows),
-            "report": report,
-            "capacity_usage": usage,
-            "explanations": explain(instance, access, occupancy, results_rows),
-            "metrics": {
-                "wall_time_seconds": metrics.get("wall_time_seconds"),
-                "solver_status": solver_status,
-                "objective_value": result.get("objective_value"),
-            },
-            "warnings": list(result.get("warnings") or []),
-        }
-        _finish(
-            job,
-            status="done",
-            message=(
-                f"Scenario {scenario} scheduled. "
-                f"{'No rule breaches found' if report['feasible'] else 'Rule breaches found'}; "
-                f"score {report['soft_scores']['objective_score']}."
-            ),
-            solver_status=solver_status,
-            elapsed=time.time() - started,
-            result=solve_result,
-        )
-    except ValueError as exc:
-        # bad instance data: the message is ours, so it is safe to show
-        logger.warning("job %s rejected the instance: %s", job["job_id"], exc)
-        _finish(
-            job,
-            status="error",
-            message=f"The uploaded instance could not be used: {exc}",
-            solver_status=None,
-            elapsed=time.time() - started,
-            error_code="BAD_INSTANCE",
-        )
-    except Exception as exc:  # pragma: no cover - defensive
-        logger.error("job %s crashed: %s\n%s", job["job_id"], exc, traceback.format_exc())
-        _finish(
-            job,
-            status="error",
-            message="The scheduler hit an unexpected error. Please try again.",
-            solver_status=None,
-            elapsed=time.time() - started,
-            error_code="SOLVE_FAILED",
-        )
+    outcome = run_pipeline(
+        folder,
+        job["scenario"],
+        time_limit_seconds=job["time_limit"],
+        num_workers=SOLVER_WORKERS,
+        out_dir=folder,          # the download endpoint serves the 3 CSVs from here
+        label=f"job {job['job_id']}",
+    )
+    _finish(
+        job,
+        status=outcome["status"],
+        message=outcome["message"],
+        solver_status=outcome["solver_status"],
+        elapsed=outcome["elapsed_s"],
+        result=outcome.get("result"),
+        error_code=outcome.get("error_code"),
+    )
 
 
 def _finish(

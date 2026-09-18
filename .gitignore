@@ -36,3 +36,6 @@ Thumbs.db
 
 # Local editor/agent config
 .claude/
+
+# Official PS1 sample instance bundled for the "load sample" buttons
+!frontend/public/sample/*.csv
