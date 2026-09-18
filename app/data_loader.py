@@ -1,35 +1,16 @@
 import os
 import pandas as pd
-from typing import Dict, Tuple
+from typing import Dict, Any, Tuple
+from app.solver import load_instance, write_submission
 
 DATA_DIR = os.getenv("DATA_DIR", "data")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "output")
 
-def load_all_input_data(data_dir: str = DATA_DIR) -> Dict[str, pd.DataFrame]:
-    """Loads all 8 input datasets for Problem Statement 1 into a dictionary of DataFrames."""
-    files = {
-        "lines": "01_LINES.csv",
-        "stations": "02_STATIONS.csv",
-        "sectors": "03_SECTORS.csv",
-        "supply": "04_LOCATION_SUPPLY.csv",
-        "buffers": "05_BUFFER_LOCATION.csv",
-        "params": "06_PARAMETERS.csv",
-        "projects": "07_PROJECT_DETAILS.csv",
-        "activities": "08_ACTIVITY_DETAILS.csv"
-    }
-    
-    data = {}
-    for key, filename in files.items():
-        filepath = os.path.join(data_dir, filename)
-        if os.path.exists(filepath):
-            data[key] = pd.read_csv(filepath)
-        else:
-            # Fallback to current working directory if data folder isn't populated
-            if os.path.exists(filename):
-                data[key] = pd.read_csv(filename)
-            else:
-                raise FileNotFoundError(f"Required dataset {filename} not found in {data_dir} or root directory.")
-    return data
+
+def load_all_input_data(data_dir: str = DATA_DIR) -> Dict[str, Any]:
+    """Loads input CSVs using solver's canonical parser."""
+    return load_instance(data_dir)
+
 
 def export_submission_files(
     access_df: pd.DataFrame, 
@@ -37,7 +18,7 @@ def export_submission_files(
     results_df: pd.DataFrame, 
     output_dir: str = OUTPUT_DIR
 ) -> Tuple[str, str, str]:
-    """Exports generated schedule DataFrames to the required 3 CSV submission files."""
+    """Helper to export generated dataframes matching official submission files."""
     os.makedirs(output_dir, exist_ok=True)
     
     access_path = os.path.join(output_dir, "SCHEDULE_ACCESS.csv")
