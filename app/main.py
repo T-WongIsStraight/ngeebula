@@ -71,10 +71,10 @@ def solve_scenario_endpoint(
         )
 
     try:
-        # 1. Ingest input datasets via canonical solver parser
+        # Ingest datasets using solver's parser
         instance_data = load_instance(DATA_DIR)
         
-        # 2. Run CP-SAT optimization model
+        # Execute CP-SAT optimization model
         result = solve_schedule(
             instance_data,
             scenario=scen_clean,
@@ -88,7 +88,7 @@ def solve_scenario_endpoint(
                 detail=result.get("message", "Solver failed to find a feasible solution.")
             )
 
-        # 3. Write submission outputs (SCHEDULE_ACCESS.csv, SCHEDULE_OCCUPANCY.csv, RESULTS.csv)
+        # Export official submission files
         write_submission(result, OUTPUT_DIR)
         
         return result
@@ -101,7 +101,7 @@ def solve_scenario_endpoint(
 def download_submission_file(filename: str):
     valid_files = ["SCHEDULE_ACCESS.csv", "SCHEDULE_OCCUPANCY.csv", "RESULTS.csv"]
     if filename not in valid_files:
-        raise HTTPException(status_code=400, detail="Invalid submission filename requested.")
+        raise HTTPException(status_code=400, detail="Invalid submission file request.")
 
     file_path = os.path.join(OUTPUT_DIR, filename)
     if os.path.exists(file_path):
