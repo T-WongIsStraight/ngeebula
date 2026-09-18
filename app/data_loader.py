@@ -6,9 +6,11 @@ from app.solver import load_instance, write_submission
 DATA_DIR = os.getenv("DATA_DIR", "data")
 OUTPUT_DIR = os.getenv("OUTPUT_DIR", "output")
 
+
 def load_all_input_data(data_dir: str = DATA_DIR) -> Dict[str, Any]:
     """Loads input CSVs using solver's canonical parser."""
     return load_instance(data_dir)
+
 
 def export_submission_files(
     access_df: pd.DataFrame, 
