@@ -27,3 +27,7 @@ Thumbs.db
 # IDE Configuration
 .vscode/
 .idea/
+
+# Frontend (React / Vite)
+node_modules/
+frontend/dist/
