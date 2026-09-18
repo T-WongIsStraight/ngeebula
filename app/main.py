@@ -1,11 +1,9 @@
-from fastapi import FastAPI, UploadFile, File, Response
-import pandas as pd
 import os
 import io
+import pandas as pd
 from typing import List
-from app.audit import record_audit, get_all_audit_logs
+from fastapi import FastAPI, UploadFile, File, Response
 from app.solver import run_track_optimization
-from app.data_loader import export_submission_files
 
 app = FastAPI(title="LTA Track Access Optimiser API")
 
@@ -17,9 +15,11 @@ os.makedirs(OUTPUT_DIR, exist_ok=True)
 activities_df = pd.DataFrame()
 projects_df = pd.DataFrame()
 
+
 @app.get("/api/health")
 def health_check():
-    return {"status": "ok", "loaded_tasks": len(activities_df)}
+    return {"status": "ok", "loaded_activities": len(activities_df)}
+
 
 @app.get("/api/parameters")
 def get_parameters():
@@ -29,104 +29,56 @@ def get_parameters():
             df_params = pd.read_csv(param_path)
             if "key" in df_params.columns and "value" in df_params.columns:
                 param_dict = dict(zip(df_params['key'], df_params['value']))
-                start_date = str(param_dict.get("horizon_start", "2027-01-04"))
-                horizon_weeks = int(param_dict.get("horizon_weeks", 30))
-                return {"start_date": start_date, "horizon_weeks": horizon_weeks}
+                return {
+                    "start_date": str(param_dict.get("horizon_start", "2027-01-04")),
+                    "horizon_weeks": int(param_dict.get("horizon_weeks", 30))
+                }
         except Exception as e:
             print(f"Error reading 06_PARAMETERS.csv: {e}")
     return {"start_date": "2027-01-04", "horizon_weeks": 30}
+
 
 @app.post("/api/upload-datasets")
 async def upload_datasets(files: List[UploadFile] = File(...)):
     global activities_df, projects_df
     saved_files = []
-    
+
     for file in files:
         file_path = os.path.join(DATA_DIR, file.filename)
         content = await file.read()
         with open(file_path, "wb") as f:
             f.write(content)
         saved_files.append(file.filename)
-        
+
         if file.filename == "08_ACTIVITY_DETAILS.csv":
             activities_df = pd.read_csv(io.BytesIO(content))
         elif file.filename == "07_PROJECT_DETAILS.csv":
             projects_df = pd.read_csv(io.BytesIO(content))
 
-    record_audit(
-        action_type="FILES_UPLOADED",
-        activity_id="SYSTEM",
-        author="Works_Controller_UI",
-        changes={"uploaded_files": saved_files},
-        replan_triggered=True
-    )
     return {"status": "success", "uploaded_files": saved_files}
+
 
 @app.get("/api/solve/{scenario}")
 def solve_schedule(scenario: str):
     global activities_df, projects_df
-    
+
     if activities_df.empty and os.path.exists(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv")):
         activities_df = pd.read_csv(os.path.join(DATA_DIR, "08_ACTIVITY_DETAILS.csv"))
     if projects_df.empty and os.path.exists(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv")):
         projects_df = pd.read_csv(os.path.join(DATA_DIR, "07_PROJECT_DETAILS.csv"))
-        
-    access_df = run_track_optimization(activities_df, projects_df, scenario=scenario)
-    
-    if not access_df.empty and not activities_df.empty:
-        merged_occ = access_df.merge(activities_df, on="activity_id", how="left")
-        occupancy_cols = ['activity_id', 'week', 'location_id', 'co_share_group']
-        for col in occupancy_cols:
-            if col not in merged_occ.columns:
-                merged_occ[col] = "GRP1" if col == "co_share_group" else "LOC_DEFAULT"
-        occupancy_df = merged_occ[occupancy_cols].copy()
-    else:
-        occupancy_df = pd.DataFrame(columns=['activity_id', 'week', 'location_id', 'co_share_group'])
-    
-    results_records = []
-    if not access_df.empty and not projects_df.empty:
-        merged = access_df.merge(activities_df[['activity_id', 'contract_number']], on="activity_id", how="left")
-        contract_max_week = merged.groupby('contract_number')['week'].max().to_dict() if 'contract_number' in merged.columns else {}
-        
-        base_date = pd.to_datetime("2027-01-04")
-        param_path = os.path.join(DATA_DIR, "06_PARAMETERS.csv")
-        if os.path.exists(param_path):
-            try:
-                dp = pd.read_csv(param_path)
-                if "key" in dp.columns and "value" in dp.columns:
-                    pdict = dict(zip(dp['key'], dp['value']))
-                    base_date = pd.to_datetime(pdict.get("horizon_start", "2027-01-04"))
-            except Exception:
-                pass
 
-        for _, proj in projects_df.iterrows():
-            c_num = proj.get('contract_number', 'C101')
-            max_w = contract_max_week.get(c_num, 1)
-            
-            comp_date = base_date + pd.Timedelta(weeks=int(max_w))
-            comp_date_str = comp_date.strftime("%Y-%m-%d")
-            
-            target_date_str = str(proj.get('target_completion_date', '2027-12-31'))
-            try:
-                target_date = pd.to_datetime(target_date_str)
-                overrun = max(0, (comp_date - target_date).days)
-            except Exception:
-                overrun = 0
-            
-            results_records.append({
-                "scenario": scenario,
-                "contract_number": c_num,
-                "simulated_completion_date": comp_date_str,
-                "overrun_days": overrun
-            })
-            
-        results_df = pd.DataFrame(results_records)
-    else:
-        results_df = pd.DataFrame(columns=["scenario", "contract_number", "simulated_completion_date", "overrun_days"])
-    
-    export_submission_files(access_df, occupancy_df, results_df, output_dir=OUTPUT_DIR)
-    
+    access_df = run_track_optimization(
+        activities_df=activities_df,
+        projects_df=projects_df,
+        scenario=scenario,
+        output_dir=OUTPUT_DIR
+    )
+
+    if access_df.empty:
+        return []
+
     return access_df.to_dict(orient="records")
+
 
 @app.get("/api/download/{filename}")
 def download_file(filename: str):
@@ -137,7 +89,3 @@ def download_file(filename: str):
         return Response(content=content, media_type="text/csv")
     else:
         return Response(content="activity_id,access_seq,week,eclo,access_night\n", media_type="text/csv")
-
-@app.get("/api/audit-log")
-def fetch_audit_logs():
-    return get_all_audit_logs()
